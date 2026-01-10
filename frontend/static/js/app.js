@@ -638,6 +638,21 @@ function validateSlideForm() {
     
     const slideType = slideTypeEl.value;
     
+    // Validate slide type is selected
+    if (!slideType || !slideType.trim()) {
+        const errorMsg = document.getElementById('slideTypeError');
+        if (errorMsg) {
+            errorMsg.style.display = 'block';
+            errorMsg.textContent = 'Please select a slide type';
+        }
+        isValid = false;
+    } else {
+        const errorMsg = document.getElementById('slideTypeError');
+        if (errorMsg) {
+            errorMsg.style.display = 'none';
+        }
+    }
+    
     // Validate title
     if (!title.value.trim()) {
         showFieldError(title, 'Title is required');
@@ -1430,6 +1445,156 @@ async function testSlideAPI() {
     }
 }
 
+// Load and render slide types
+let allSlideTypes = {};
+
+async function loadSlideTypes() {
+    try {
+        const response = await fetch(`${API_BASE}/slides/types`);
+        if (response.ok) {
+            const data = await response.json();
+            allSlideTypes = data.types || {};
+            return allSlideTypes;
+        }
+    } catch (error) {
+        console.error('Error loading slide types:', error);
+    }
+    return {};
+}
+
+function renderSlideTypes(selectedType = null) {
+    const container = document.getElementById('slideTypeList');
+    const filterInput = document.getElementById('slideTypeFilter');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    const filterText = filterInput ? filterInput.value.toLowerCase().trim() : '';
+    
+    // Icon mapping for slide types (emoji or text)
+    const icons = {
+        'pihole_summary': '🛡️',
+        'plex_now_playing': '🎬',
+        'arm_rip_progress': '💿',
+        'system_stats': '💻',
+        'weather': '☁️',
+        'image': '🖼️',
+        'static_text': '📝',
+        'clock': '🕐',
+        'custom': '⚙️'
+    };
+    
+    // Sort types by display name
+    const sortedTypes = Object.entries(allSlideTypes).sort((a, b) => a[1].localeCompare(b[1]));
+    
+    sortedTypes.forEach(([typeName, displayName]) => {
+        // Filter by search text
+        if (filterText && !displayName.toLowerCase().includes(filterText) && !typeName.toLowerCase().includes(filterText)) {
+            return;
+        }
+        
+        const card = document.createElement('div');
+        card.className = 'slide-type-card';
+        if (selectedType === typeName) {
+            card.classList.add('selected');
+        }
+        card.setAttribute('role', 'option');
+        card.setAttribute('aria-selected', selectedType === typeName ? 'true' : 'false');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-label', `Select ${displayName} slide type`);
+        card.dataset.typeName = typeName;
+        
+        const icon = document.createElement('div');
+        icon.className = 'slide-type-card-icon';
+        icon.textContent = icons[typeName] || '📄';
+        icon.setAttribute('aria-hidden', 'true');
+        
+        const name = document.createElement('div');
+        name.className = 'slide-type-card-name';
+        name.textContent = displayName;
+        
+        card.appendChild(icon);
+        card.appendChild(name);
+        
+        card.addEventListener('click', () => selectSlideType(typeName));
+        card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                selectSlideType(typeName);
+            } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                const nextCard = card.nextElementSibling;
+                if (nextCard && nextCard.classList.contains('slide-type-card')) {
+                    nextCard.focus();
+                }
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const prevCard = card.previousElementSibling;
+                if (prevCard && prevCard.classList.contains('slide-type-card')) {
+                    prevCard.focus();
+                }
+            }
+        });
+        
+        container.appendChild(card);
+    });
+    
+    // If no types match filter, show message
+    if (container.children.length === 0 && filterText) {
+        const noResults = document.createElement('div');
+        noResults.className = 'slide-type-card';
+        noResults.style.cssText = 'cursor: default; opacity: 0.6;';
+        noResults.textContent = 'No slide types found';
+        container.appendChild(noResults);
+    }
+}
+
+function filterSlideTypes() {
+    renderSlideTypes(document.getElementById('slideType')?.value || null);
+}
+
+async function selectSlideType(typeName) {
+    const hiddenInput = document.getElementById('slideType');
+    if (hiddenInput) {
+        hiddenInput.value = typeName;
+    }
+    
+    // Update UI - mark selected card
+    const cards = document.querySelectorAll('.slide-type-card');
+    cards.forEach(card => {
+        if (card.dataset.typeName === typeName) {
+            card.classList.add('selected');
+            card.setAttribute('aria-selected', 'true');
+        } else {
+            card.classList.remove('selected');
+            card.setAttribute('aria-selected', 'false');
+        }
+    });
+    
+    // Hide error message
+    const errorMsg = document.getElementById('slideTypeError');
+    if (errorMsg) {
+        errorMsg.style.display = 'none';
+    }
+    
+    // Show configuration fields
+    const configFields = document.getElementById('slideConfigFields');
+    if (configFields) {
+        configFields.style.display = 'block';
+    }
+    
+    // Load schema for selected type
+    await loadSlideTypeConfig(typeName);
+    
+    // Focus first input in config fields
+    setTimeout(() => {
+        const firstInput = configFields?.querySelector('input:not([type="hidden"]), select, textarea');
+        if (firstInput) {
+            firstInput.focus();
+        }
+    }, 100);
+}
+
 // Slide Modal
 async function openSlideModal(slide = null) {
     const modal = document.getElementById('slideModal');
@@ -1438,14 +1603,48 @@ async function openSlideModal(slide = null) {
     // Clear validation errors
     clearValidationErrors();
     
+    // Load slide types
+    await loadSlideTypes();
+    
+    // Setup filter input listener
+    const filterInput = document.getElementById('slideTypeFilter');
+    if (filterInput) {
+        filterInput.value = '';
+        filterInput.removeEventListener('input', filterSlideTypes);
+        filterInput.addEventListener('input', filterSlideTypes);
+    }
+    
+    // Get UI elements
+    const typeSelection = document.getElementById('slideTypeSelection');
+    const configFields = document.getElementById('slideConfigFields');
+    
     if (slide) {
+        // Edit mode
         document.getElementById('modalTitle').textContent = 'Edit Slide';
         document.getElementById('slideId').value = slide.id;
         const slideType = slide.type;
-        document.getElementById('slideType').value = slideType;
-        document.getElementById('slideTitle').value = slide.title;
-        document.getElementById('slideDuration').value = slide.duration;
+        
+        // Set hidden input
+        const hiddenInput = document.getElementById('slideType');
+        if (hiddenInput) {
+            hiddenInput.value = slideType;
+        }
+        
+        // Pre-populate form fields
+        document.getElementById('slideTitle').value = slide.title || '';
+        document.getElementById('slideDuration').value = slide.duration || 10;
         document.getElementById('slideRefreshDuration').value = slide.refresh_duration || 5;
+        
+        // Render slide types with selected type
+        renderSlideTypes(slideType);
+        
+        // Show config fields and hide type selection
+        if (configFields) {
+            configFields.style.display = 'block';
+        }
+        if (typeSelection) {
+            typeSelection.style.display = 'none';
+        }
         
         // Load schema and populate config fields
         await loadSlideTypeConfig(slideType);
@@ -1486,26 +1685,59 @@ async function openSlideModal(slide = null) {
             });
         }
     } else {
+        // Add mode - show type selection first
         document.getElementById('modalTitle').textContent = 'Add Slide';
         form.reset();
+        
+        // Clear hidden input
+        const hiddenInput = document.getElementById('slideType');
+        if (hiddenInput) {
+            hiddenInput.value = '';
+        }
+        
+        // Reset form fields
+        document.getElementById('slideTitle').value = '';
+        document.getElementById('slideDuration').value = '10';
+        document.getElementById('slideRefreshDuration').value = '5';
+        
+        // Render all slide types (no selection)
+        renderSlideTypes(null);
+        
+        // Show type selection and hide config fields
+        if (typeSelection) {
+            typeSelection.style.display = 'block';
+        }
+        if (configFields) {
+            configFields.style.display = 'none';
+        }
+        
         toggleWeatherSettings(false);
         toggleStaticTextSettings(false);
         toggleImageSettings(false);
         hideImagePreview();
-        
-        // Load schema for default slide type
-        const defaultType = document.getElementById('slideType').value;
-        await loadSlideTypeConfig(defaultType);
     }
     
     // Setup API section collapsible (for custom slides)
     setupSlideAPISection();
     
     modal.style.display = 'block';
-    // Focus first input
+    
+    // Focus appropriate element
     setTimeout(() => {
-        const firstInput = form.querySelector('input, select');
-        if (firstInput) firstInput.focus();
+        if (slide) {
+            // Edit mode: focus first config input
+            const firstInput = configFields?.querySelector('input:not([type="hidden"]), select, textarea');
+            if (firstInput) firstInput.focus();
+        } else {
+            // Add mode: focus filter input
+            if (filterInput) {
+                filterInput.focus();
+            } else {
+                // Fallback to first input in type selection
+                const firstInput = typeSelection?.querySelector('input, button');
+                if (firstInput) firstInput.focus();
+            }
+        }
     }, 50);
 }
 
@@ -1517,6 +1749,33 @@ function closeSlideModal() {
     toggleWeatherSettings(false);
     toggleStaticTextSettings(false);
     updateAPIConfigInSlideModal(null);
+    
+    // Reset slide type selection UI
+    const typeSelection = document.getElementById('slideTypeSelection');
+    const configFields = document.getElementById('slideConfigFields');
+    const filterInput = document.getElementById('slideTypeFilter');
+    const errorMsg = document.getElementById('slideTypeError');
+    
+    if (typeSelection) {
+        typeSelection.style.display = 'block';
+    }
+    if (configFields) {
+        configFields.style.display = 'none';
+    }
+    if (filterInput) {
+        filterInput.value = '';
+    }
+    if (errorMsg) {
+        errorMsg.style.display = 'none';
+    }
+    
+    // Clear slide type selection cards
+    const cards = document.querySelectorAll('.slide-type-card');
+    cards.forEach(card => {
+        card.classList.remove('selected');
+        card.setAttribute('aria-selected', 'false');
+    });
+    
     // Hide test result
     const testResult = document.getElementById('slideApiTestResult');
     if (testResult) {

@@ -838,9 +838,9 @@ class SlideRenderer:
         
         # Format time based on format preference
         if time_format == "12h":
-            time_str = now.strftime("%I:%M:%S %p")  # 12-hour with AM/PM
+            time_str = now.strftime("%I:%M %p")  # 12-hour with AM/PM
         else:
-            time_str = now.strftime("%H:%M:%S")  # 24-hour format
+            time_str = now.strftime("%H:%M")  # 24-hour format
         
         # Format date if enabled
         date_str = ""
