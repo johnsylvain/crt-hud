@@ -36,11 +36,23 @@ textarea {
     text-rendering: optimizeSpeed;
 }
 
-/* Classic Mac dithered/stippled pattern background */
+/* HTML element - CRT viewport container */
+html {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #000000;
+    /* CRT-style rounded corners for entire viewport */
+    border-radius: 24px;
+    margin: 0;
+    padding: 0;
+}
+
+/* Classic Mac dithered/stippled pattern background with CRT rounded corners */
 body {
     font-family: 'Chicago', 'Geneva', 'Monaco', 'Courier New', 'Menlo', monospace;
     /* Dithered gray background pattern like classic Mac */
-    background-color: #C0C0C0;
+    background-color: #F4F4F4;
     background-image: 
         repeating-linear-gradient(
             0deg,
@@ -67,9 +79,18 @@ body {
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeSpeed;
     letter-spacing: 0.3px;
-    min-height: 100vh;
+    width: 100vw;
+    height: 100vh;
     display: flex;
     flex-direction: column;
+    /* CRT-style rounded corners for the entire document body */
+    border-radius: 20px;
+    overflow: hidden;
+    /* Add a bezel border to create CRT frame effect */
+    border: 12px solid #000000;
+    box-sizing: border-box;
+    /* Ensure body fits within rounded viewport */
+    position: relative;
 }
 
 /* Macintosh Plus Menu Bar */
@@ -132,12 +153,14 @@ body {
     color: #FFFFFF;
 }
 
-/* Desktop Container */
+/* Desktop Container with CRT effect */
 .desktop-container {
     flex: 1;
     position: relative;
     overflow: hidden;
     min-height: 0;
+    /* Add subtle rounded corner mask effect */
+    border-radius: 0;
 }
 
 /* Desktop Icons - Classic Mac Style */
@@ -324,8 +347,8 @@ body {
     box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.2);
     max-width: 1200px;
     width: calc(100% - 16px);
-    height: calc(100vh - 46px);
-    max-height: calc(100vh - 46px);
+    height: calc(100vh - 65px);
+    max-height: calc(100vh - 65px);
     margin-left: auto;
     margin-right: auto;
     overflow: hidden;
@@ -377,7 +400,7 @@ body {
 .window-title {
     flex: 1;
     font-size: 13px;
-    font-weight: bold;
+    font-weight: 700;
     color: #000000;
     text-align: center;
     letter-spacing: 0.5px;
@@ -431,13 +454,41 @@ body {
     flex-shrink: 0;
     letter-spacing: 0.2px;
     font-weight: bold;
+    /* Note: Status bar doesn't need border-radius as it's in the middle */
 }
 
 .window-status-bar span {
     white-space: nowrap;
 }
 
-/* Window Content Area */
+/* Window Tabs Container - Integrated into window structure */
+.window-tabs-container {
+    background: #C0C0C0;
+    border-bottom: none;
+    padding: 6px 8px 0 8px;
+    flex-shrink: 0;
+    /* Match window background pattern */
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 0, 0, 0.05) 1px,
+            rgba(0, 0, 0, 0.05) 2px
+        ),
+        repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 1px,
+            rgba(255, 255, 255, 0.2) 1px,
+            rgba(255, 255, 255, 0.2) 2px
+        );
+    background-size: 4px 4px;
+    /* Create visual connection with status bar above */
+    border-top: 1px solid #808080;
+}
+
+/* Window Content Area - connects seamlessly with active tab */
 .window-content {
     flex: 1;
     overflow-y: auto;
@@ -445,6 +496,11 @@ body {
     background: #FFFFFF;
     padding: 8px;
     min-height: 0; /* Allow flexbox to shrink */
+    /* Border at top connects with tabs container, active tab appears to extend into this area */
+    border-top: 3px solid #FFFFFF;
+    position: relative;
+    z-index: 1;
+    margin-top: 0;
 }
 
 .container {
@@ -910,14 +966,17 @@ body {
             rgba(0, 0, 0, 0.05) 2px
         );
     background-size: 4px 4px;
-    margin: 5% auto;
+    margin: 2% auto;
     padding: 0;
     border: 2px outset #808080;
     width: 90%;
     max-width: 600px;
+    max-height: 90vh;
     position: relative;
     box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
-    overflow: visible; /* Allow dropdown options to extend beyond modal */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-content h2 {
@@ -940,6 +999,7 @@ body {
     border-top: 1px solid #FFFFFF;
     letter-spacing: 0.5px;
     text-align: left;
+    flex-shrink: 0; /* Keep title bar fixed at top */
 }
 
 .close {
@@ -977,8 +1037,33 @@ body {
     background: #FFFFFF;
     border: 2px inset #808080;
     margin: 2px;
-    overflow: visible; /* Allow dropdown options to extend beyond form */
+    overflow-y: auto;
+    overflow-x: hidden;
     position: relative;
+    flex: 1;
+    min-height: 0; /* Allow flex item to shrink below content size */
+    max-height: 100%; /* Prevent overflow */
+    /* Scrollbar styling for better UX */
+    scrollbar-width: thin;
+    scrollbar-color: #808080 #C0C0C0;
+}
+
+.modal-content form::-webkit-scrollbar {
+    width: 12px;
+}
+
+.modal-content form::-webkit-scrollbar-track {
+    background: #C0C0C0;
+    border: 1px inset #808080;
+}
+
+.modal-content form::-webkit-scrollbar-thumb {
+    background: #808080;
+    border: 1px outset #808080;
+}
+
+.modal-content form::-webkit-scrollbar-thumb:hover {
+    background: #606060;
 }
 
 .modal-content label {
@@ -1013,6 +1098,7 @@ body {
 /* Ensure select dropdown options can extend beyond modal */
 .modal-content select {
     z-index: 1001; /* Higher z-index to ensure dropdown appears above modal content */
+    position: relative; /* Needed for z-index to work properly */
 }
 
 .modal-content input[type="text"]:focus,
@@ -1302,8 +1388,8 @@ body {
     .mac-window {
         margin: 4px;
         width: calc(100% - 8px);
-        max-height: calc(100vh - 24px);
-        height: calc(100vh - 24px);
+        max-height: calc(100vh - 55px);
+        height: calc(100vh - 55px);
     }
     
     .window-title-bar {
@@ -1326,8 +1412,13 @@ body {
         gap: 8px;
     }
     
+    .window-tabs-container {
+        padding: 4px 6px 0 6px;
+    }
+    
     .window-content {
         padding: 6px;
+        border-top: 3px solid #FFFFFF;
     }
     
     .container {
@@ -1377,11 +1468,16 @@ body {
     }
     
     /* Mobile-friendly tabs */
+    .window-tabs-container {
+        padding: 4px 6px 0 6px;
+    }
+    
     .tabs {
         flex-wrap: wrap;
-        gap: 4px;
-        padding: 4px;
-        margin-bottom: 10px;
+        gap: 0;
+        padding: 0;
+        margin: 0;
+        margin-bottom: -1px;
     }
     
     .tab-btn {
@@ -1392,6 +1488,7 @@ body {
         font-size: 13px;
         touch-action: manipulation;
         -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+        margin-right: 2px;
     }
     
     .tab-btn:active {
@@ -1400,6 +1497,7 @@ body {
     
     .tab-btn.active {
         padding: 10px 12px;
+        padding-bottom: 11px;
     }
     
     /* Mobile-friendly forms */
@@ -1443,12 +1541,14 @@ body {
         width: 95%;
         max-width: 95%;
         margin: 2% auto;
+        max-height: 95vh; /* Allow more height on mobile */
     }
     
     .modal-content form {
         padding: 12px;
         gap: 12px;
-        overflow: visible; /* Allow dropdown options to extend beyond form on mobile */
+        overflow-y: auto;
+        overflow-x: hidden;
     }
     
     .modal-content input[type="text"],
@@ -1763,8 +1863,8 @@ body {
     .mac-window {
         margin: 2px;
         width: calc(100% - 4px);
-        max-height: calc(100vh - 22px);
-        height: calc(100vh - 22px);
+        max-height: calc(100vh - 55px);
+        height: calc(100vh - 55px);
     }
     
     .window-title-bar {
@@ -1781,8 +1881,13 @@ body {
         padding: 0 4px;
     }
     
+    .window-tabs-container {
+        padding: 3px 4px 0 4px;
+    }
+    
     .window-content {
         padding: 4px;
+        border-top: 3px solid #FFFFFF;
     }
     
     .card h2 {
@@ -1917,25 +2022,22 @@ body {
     transition: background-color 0.1s ease, border-color 0.1s ease;
 }
 
-.tab-btn {
-    transition: background-color 0.1s ease;
-}
-
 /* Keep instant feel for most interactions, but smooth subtle transitions */
 
-/* Classic Mac tabs */
+/* Classic Mac tabs - Integrated into window */
 .tabs {
     display: flex;
-    gap: 2px;
-    margin-bottom: 12px;
+    gap: 0;
     padding: 0;
-    background: #FFFFFF;
-    border: 2px inset #808080;
-    padding: 4px;
+    margin: 0;
+    background: transparent;
+    border: none;
+    /* Tabs extend to bottom of container to connect with content */
+    margin-bottom: -1px;
 }
 
 .tab-btn {
-    padding: 6px 18px;
+    padding: 8px 20px;
     background-color: #C0C0C0;
     background-image: 
         repeating-linear-gradient(
@@ -1947,12 +2049,23 @@ body {
         );
     background-size: 4px 4px;
     border: 2px outset #808080;
+    border-bottom: none;
+    border-radius: 0;
     cursor: pointer;
     font-size: 13px;
     font-weight: bold;
     color: #000000;
     letter-spacing: 0.3px;
     box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.2);
+    position: relative;
+    /* Slight overlap to create connected look */
+    margin-right: 2px;
+    /* Smooth transition for background */
+    transition: background-color 0.1s ease;
+}
+
+.tab-btn:last-child {
+    margin-right: 0;
 }
 
 .tab-btn:hover {
@@ -1961,8 +2074,9 @@ body {
 
 .tab-btn:active {
     border: 2px inset #808080;
+    border-bottom: none;
     background-color: #808080;
-    padding: 8px 16px 4px 20px;
+    padding: 9px 19px 7px 21px;
     box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.3);
 }
 
@@ -1973,8 +2087,15 @@ body {
     border-bottom: 2px solid #FFFFFF;
     box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.2);
     position: relative;
-    z-index: 1;
-    padding: 6px 18px;
+    z-index: 3;
+    padding: 8px 20px;
+    /* Active tab extends down to seamlessly connect with content area - appears "cut out" of frame */
+    margin-bottom: -3px;
+    padding-bottom: 11px;
+    /* Extend border to touch content area */
+    border-bottom-width: 0;
+    /* Smooth transition for background */
+    transition: background-color 0.1s ease;
 }
 
 .tab-content {
@@ -2264,6 +2385,124 @@ body {
     font-size: 13px;
     line-height: 1.6;
     color: #000000;
+}
+
+/* About Dialog Styling - Classic Mac About Box */
+.about-modal {
+    display: none;
+}
+
+.about-dialog {
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+    padding: 0;
+    overflow: hidden;
+}
+
+.about-header {
+    padding: 24px 24px 16px 24px;
+    background: #FFFFFF;
+    border-bottom: 1px solid #808080;
+    /* Rounded top corners */
+}
+
+.about-logo {
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.about-logo svg {
+    width: 48px;
+    height: 48px;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+.about-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #000000;
+    margin: 0;
+    padding: 0;
+    letter-spacing: 0.5px;
+}
+
+.about-content {
+    padding: 20px 24px;
+    background: #FFFFFF;
+    text-align: left;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.about-version {
+    text-align: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #E0E0E0;
+    font-size: 14px;
+    color: #000000;
+}
+
+.about-description {
+    margin-bottom: 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #000000;
+}
+
+.about-description p {
+    margin: 8px 0;
+}
+
+.about-features {
+    margin-bottom: 16px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: #000000;
+}
+
+.about-features ul {
+    margin: 8px 0 8px 20px;
+    padding: 0;
+}
+
+.about-features li {
+    margin: 4px 0;
+}
+
+
+.about-footer {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 12px;
+    border-top: 1px solid #E0E0E0;
+    font-size: 11px;
+    color: #000000;
+    line-height: 1.6;
+    font-weight: bold;
+}
+
+.about-footer p {
+    margin: 6px 0;
+}
+
+.about-actions {
+    padding: 12px 24px;
+    background: #FFFFFF;
+    border-top: 1px solid #808080;
+    justify-content: center;
+    /* Rounded bottom corners */
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.about-actions .btn {
+    min-width: 120px;
 }
 
 /* Button Loading State */

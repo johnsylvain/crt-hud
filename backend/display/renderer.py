@@ -1,7 +1,7 @@
 """Slide renderer with Fallout theme."""
 
 from PIL import Image, ImageDraw, ImageOps
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
 try:
     import numpy as np
@@ -10,6 +10,7 @@ except ImportError:
     HAS_NUMPY = False
 from .themes import FalloutTheme, DISPLAY_WIDTH, DISPLAY_HEIGHT, PADDING, LINE_HEIGHT_LARGE, LINE_HEIGHT_MEDIUM, LINE_HEIGHT_SMALL, LINE_HEIGHT_TINY
 from ..utils.helpers import format_bytes, format_duration, format_time_mmss, calculate_elapsed_time, draw_progress_bar
+from .widget_renderer import WidgetRendererRegistry
 
 
 class SlideRenderer:
@@ -17,6 +18,7 @@ class SlideRenderer:
     
     def __init__(self):
         self.theme = FalloutTheme()
+        self.widget_registry = WidgetRendererRegistry(self.theme)
     
     def _floyd_steinberg_dither(self, img: Image.Image) -> Image.Image:
         """
@@ -170,6 +172,10 @@ class SlideRenderer:
         if slide_type == "static_text":
             self._render_static_text(img, draw, slide_config or {}, title)
             return img
+        
+        # Check if this is a custom slide
+        if slide_type == "custom":
+            return self._render_custom(slide_config or {}, data, title)
         
         # Draw title for other slide types
         y = PADDING
@@ -809,4 +815,193 @@ class SlideRenderer:
             # Stop if we've gone beyond the display height
             if current_y > DISPLAY_HEIGHT - PADDING:
                 break
+    
+    def _render_custom(self, slide_config: Dict[str, Any], data: Optional[Dict[str, Any]], title: str = "") -> Image.Image:
+        """
+        Render a custom slide with widgets.
+        
+        Args:
+            slide_config: Slide configuration with layout and widgets
+            data: Data dictionary from collector
+            title: Slide title
+        
+        Returns:
+            PIL Image object
+        """
+        img = self.theme.create_image()
+        draw = ImageDraw.Draw(img)
+        
+        # Draw title if provided
+        y = PADDING
+        if title:
+            draw.text(
+                (PADDING, y),
+                title.upper(),
+                fill=self.theme.colors["text"],
+                font=self.theme.fonts["large"]
+            )
+            y += LINE_HEIGHT_LARGE + 4
+        
+        # Get layout configuration
+        layout_config = slide_config.get("layout", {})
+        widgets = slide_config.get("widgets", [])
+        
+        if not widgets:
+            # No widgets configured
+            draw.text(
+                (PADDING, y),
+                "NO WIDGETS CONFIGURED",
+                fill=self.theme.colors["text_muted"],
+                font=self.theme.fonts["medium"]
+            )
+            return img
+        
+        # Calculate layout (grid areas and positions)
+        layout = self._calculate_layout(layout_config, DISPLAY_WIDTH, DISPLAY_HEIGHT)
+        
+        # Ensure data is a dict
+        if data is None:
+            data = {}
+        
+        # Render widgets (pass title height for positioning)
+        title_height = LINE_HEIGHT_LARGE + 4 if title else 0
+        self._render_widgets(widgets, layout, data, draw, title_height)
+        
+        return img
+    
+    def _calculate_layout(self, layout_config: Dict[str, Any], display_width: int, display_height: int) -> Dict[str, Any]:
+        """
+        Calculate layout from configuration.
+        
+        Supports:
+        - Grid areas: CSS Grid-like areas with grid-area syntax
+        - Absolute positioning: Direct x/y coordinates
+        
+        Args:
+            layout_config: Layout configuration dictionary
+            display_width: Display width in pixels
+            display_height: Display height in pixels
+        
+        Returns:
+            Dictionary mapping container IDs to bounding boxes (x, y, width, height)
+        """
+        layout_type = layout_config.get("type", "absolute")
+        grid_areas = layout_config.get("grid_areas", [])
+        
+        layout = {}
+        
+        if layout_type == "mixed" or layout_type == "grid":
+            # Parse grid areas
+            # Grid areas format: "1 / 1 / 2 / 3" means row-start / col-start / row-end / col-end
+            # For simplicity, we'll use a 2x2 grid by default
+            rows = layout_config.get("rows", 2)
+            cols = layout_config.get("cols", 2)
+            
+            cell_width = display_width // cols
+            cell_height = display_height // rows
+            
+            for area in grid_areas:
+                area_id = area.get("id", "")
+                grid_area_str = area.get("grid_area", "")
+                
+                # Parse grid-area string (row-start / col-start / row-end / col-end)
+                try:
+                    parts = [int(p.strip()) for p in grid_area_str.split("/")]
+                    if len(parts) >= 4:
+                        row_start, col_start, row_end, col_end = parts[0], parts[1], parts[2], parts[3]
+                        
+                        # Calculate bounding box (0-indexed)
+                        x = (col_start - 1) * cell_width
+                        y = (row_start - 1) * cell_height
+                        width = (col_end - col_start) * cell_width
+                        height = (row_end - row_start) * cell_height
+                        
+                        layout[area_id] = (x, y, width, height)
+                except (ValueError, IndexError):
+                    # Invalid grid area - use default position
+                    layout[area_id] = (0, 0, cell_width, cell_height)
+        else:
+            # Absolute layout - each container is positioned absolutely
+            containers = layout_config.get("containers", [])
+            for container in containers:
+                container_id = container.get("id", "")
+                x = container.get("x", 0)
+                y = container.get("y", 0)
+                width = container.get("width", display_width // 2)
+                height = container.get("height", display_height // 2)
+                
+                layout[container_id] = (x, y, width, height)
+        
+        # If no layout containers defined, create a default full-screen container
+        if not layout:
+            layout["default"] = (PADDING, PADDING, display_width - (PADDING * 2), display_height - (PADDING * 2))
+        
+        return layout
+    
+    def _render_widgets(
+        self,
+        widgets: list,
+        layout: Dict[str, Tuple[int, int, int, int]],
+        data: Dict[str, Any],
+        draw: ImageDraw.Draw,
+        title_height: int = 0
+    ) -> None:
+        """
+        Render widgets within layout containers.
+        
+        Args:
+            widgets: List of widget configurations
+            layout: Dictionary mapping container IDs to bounding boxes
+            data: Data dictionary
+            draw: PIL ImageDraw instance
+            title_height: Height used by title (for adjusting widget positions)
+        """
+        for widget in widgets:
+            widget_type = widget.get("type", "")
+            container_id = widget.get("container", "default")
+            position = widget.get("position", {})
+            widget_x = position.get("x", 0)
+            widget_y = position.get("y", 0)
+            
+            # Get container bounds
+            container_bounds = layout.get(container_id, (PADDING, PADDING, DISPLAY_WIDTH - (PADDING * 2), DISPLAY_HEIGHT - (PADDING * 2)))
+            container_x, container_y, container_width, container_height = container_bounds
+            
+            # Calculate widget bounds (relative to container, but absolute on canvas)
+            # Adjust container_y for title if in default container
+            if container_id == "default" and title_height > 0:
+                container_y += title_height
+                container_height -= title_height
+            
+            widget_bounds_x = container_x + widget_x
+            widget_bounds_y = container_y + widget_y
+            
+            # Get widget dimensions (default to container size if not specified)
+            widget_width = widget.get("width", container_width - widget_x)
+            widget_height = widget.get("height", container_height - widget_y)
+            
+            # Clamp widget to container bounds
+            widget_width = min(widget_width, container_width - widget_x)
+            widget_height = min(widget_height, container_height - widget_y)
+            
+            bounds = (widget_bounds_x, widget_bounds_y, widget_width, widget_height)
+            
+            # Get renderer for widget type
+            renderer = self.widget_registry.get(widget_type)
+            if renderer:
+                try:
+                    renderer.render(widget, data, draw, bounds)
+                except Exception as e:
+                    print(f"Error rendering widget {widget.get('id', 'unknown')}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    # Draw error placeholder
+                    font = self.theme.fonts["small"]
+                    color = self.theme.colors["text_muted"]
+                    draw.text((widget_bounds_x, widget_bounds_y), f"Error: {widget_type}", fill=color, font=font)
+            else:
+                # Unknown widget type - draw placeholder
+                font = self.theme.fonts["small"]
+                color = self.theme.colors["text_muted"]
+                draw.text((widget_bounds_x, widget_bounds_y), f"Unknown: {widget_type}", fill=color, font=font)
 

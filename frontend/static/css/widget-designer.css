@@ -1,0 +1,583 @@
+/* Widget Designer Styles - Fallout Theme */
+
+.widget-designer-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.designer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: #f5f5f5;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.designer-slide-info {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.designer-slide-info label {
+    font-weight: bold;
+    margin-right: 4px;
+}
+
+.designer-slide-info input {
+    padding: 4px 8px;
+    border: 1px solid #999;
+    border-radius: 2px;
+    font-family: monospace;
+}
+
+.designer-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.designer-content {
+    display: grid;
+    grid-template-columns: 200px 1fr 300px;
+    gap: 16px;
+    min-height: 500px;
+}
+
+/* Widget Palette (Left Pane) */
+.widget-palette {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 12px;
+    overflow-y: auto;
+}
+
+.widget-palette h3 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: bold;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 8px;
+}
+
+.palette-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.palette-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    background: #fff;
+    transition: background 0.2s;
+}
+
+.palette-item:hover {
+    background: #f0f0f0;
+    border-color: #999;
+}
+
+.palette-item:active {
+    background: #e0e0e0;
+}
+
+.palette-item-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e8e8e8;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.palette-item-label {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Layout Canvas (Center Pane) */
+.layout-canvas {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+}
+
+.layout-canvas h3 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: bold;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 8px;
+}
+
+.canvas-container {
+    flex: 1;
+    background: #000;
+    border: 2px solid #999;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Canvas Overlay for interactive widgets */
+.canvas-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.canvas-drop-zone {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: all;
+}
+
+.drop-zone-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #666;
+    font-size: 12px;
+    font-style: italic;
+    text-align: center;
+    pointer-events: none;
+}
+
+.canvas-drop-zone.drag-over {
+    background: rgba(0, 255, 0, 0.1);
+    border: 2px dashed #0f0;
+}
+
+.canvas-drop-zone.drag-over .drop-zone-message {
+    color: #0f0;
+    font-weight: bold;
+}
+
+.canvas-widgets {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.canvas-widget-item {
+    position: absolute;
+    border: 2px solid #666;
+    background: rgba(255, 255, 255, 0.1);
+    cursor: move;
+    pointer-events: all;
+    min-width: 50px;
+    min-height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #fff;
+    z-index: 10;
+}
+
+.canvas-widget-item:hover {
+    border-color: #0f0;
+    background: rgba(0, 255, 0, 0.15);
+}
+
+.canvas-widget-item.selected {
+    border-color: #00f;
+    background: rgba(0, 0, 255, 0.2);
+    box-shadow: 0 0 8px rgba(0, 0, 255, 0.5);
+}
+
+.canvas-widget-item.dragging {
+    opacity: 0.5;
+    z-index: 100;
+}
+
+.canvas-widget-item .widget-resize-handle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #00f;
+    border: 1px solid #fff;
+    cursor: nwse-resize;
+    right: -4px;
+    bottom: -4px;
+    display: none;
+}
+
+.canvas-widget-item.selected .widget-resize-handle {
+    display: block;
+}
+
+.canvas-widget-item .widget-label {
+    padding: 4px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.canvas-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+    pointer-events: none;
+    display: none;
+}
+
+.canvas-grid.visible {
+    display: block;
+}
+
+/* Drag preview */
+.palette-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.palette-item[draggable="true"] {
+    cursor: grab;
+}
+
+.palette-item[draggable="true"]:active {
+    cursor: grabbing;
+}
+
+#previewCanvas {
+    max-width: 100%;
+    max-height: 100%;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+.canvas-widgets {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.canvas-widget-item {
+    position: absolute;
+    border: 2px dashed #0f0;
+    background: rgba(0, 255, 0, 0.1);
+    cursor: move;
+    pointer-events: all;
+}
+
+.canvas-widget-item.selected {
+    border-color: #00f;
+    background: rgba(0, 0, 255, 0.1);
+}
+
+.canvas-widget-item .widget-handle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #fff;
+    border: 1px solid #000;
+    cursor: nwse-resize;
+}
+
+.canvas-widget-item .widget-label {
+    position: absolute;
+    top: -18px;
+    left: 0;
+    font-size: 10px;
+    color: #0f0;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 2px 4px;
+    white-space: nowrap;
+}
+
+.canvas-controls {
+    margin-top: 12px;
+    display: flex;
+    gap: 8px;
+}
+
+/* Property Panel (Right Pane) */
+.property-panel {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 12px;
+    overflow-y: auto;
+}
+
+.property-panel h3 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: bold;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 8px;
+}
+
+.property-panel-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.property-placeholder {
+    color: #666;
+    font-size: 12px;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}
+
+.property-group {
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    padding: 8px;
+    background: #fafafa;
+}
+
+.property-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+.property-group input,
+.property-group select,
+.property-group textarea {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid #999;
+    border-radius: 2px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.property-group textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.property-group small {
+    display: block;
+    color: #666;
+    font-size: 11px;
+    margin-top: 4px;
+}
+
+.property-group .property-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 4px;
+}
+
+/* API Configuration Section */
+.designer-api-section {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 0;
+    margin-top: 16px;
+}
+
+.designer-api-section h3 {
+    margin: 0;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    border-bottom: 1px solid #ccc;
+    user-select: none;
+}
+
+.designer-api-section h3:hover {
+    background: #f5f5f5;
+}
+
+.designer-api-section h3.expanded .collapse-icon {
+    transform: rotate(90deg);
+}
+
+.designer-api-section .collapsible-content {
+    padding: 12px;
+}
+
+.api-optional-note {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+    margin-bottom: 12px;
+    padding: 8px;
+    background: #f9f9f9;
+    border-left: 3px solid #999;
+}
+
+.api-config-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.api-config-form label {
+    font-size: 12px;
+    font-weight: bold;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.api-config-form input,
+.api-config-form select,
+.api-config-form textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #999;
+    border-radius: 2px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.api-config-form textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.api-test-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.api-test-result {
+    margin-top: 12px;
+    padding: 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: monospace;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.api-test-result.success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.api-test-result.error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+/* Empty State */
+.designer-empty-state {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+}
+
+/* Layout Area Configuration */
+.layout-area-config {
+    margin-top: 12px;
+    padding: 8px;
+    background: #f9f9f9;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+}
+
+.layout-area-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.layout-area-item {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 6px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+}
+
+.layout-area-item input {
+    flex: 1;
+    padding: 4px 6px;
+    border: 1px solid #999;
+    border-radius: 2px;
+    font-family: monospace;
+    font-size: 11px;
+}
+
+.layout-area-item button {
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .designer-content {
+        grid-template-columns: 180px 1fr 250px;
+    }
+}
+
+@media (max-width: 900px) {
+    .designer-content {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+    }
+    
+    .widget-palette {
+        max-height: 200px;
+    }
+    
+    .property-panel {
+        max-height: 300px;
+    }
+}
+

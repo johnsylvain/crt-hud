@@ -13,11 +13,8 @@ import argparse
 from pathlib import Path
 
 from config import get_slides_config, get_api_config, IS_DEV, DATA_DIR
-from backend.collectors.arm_collector import ARMCollector
-from backend.collectors.pihole_collector import PiHoleCollector
-from backend.collectors.plex_collector import PlexCollector
-from backend.collectors.system_collector import SystemCollector
-from backend.collectors.weather_collector import WeatherCollector
+from backend.collectors.generic_collector import GenericCollector
+from backend.slides import SlideTypeRegistry
 from backend.display.renderer import SlideRenderer
 from backend.display.video_output import create_video_output
 from backend.api.routes import create_app
@@ -33,6 +30,8 @@ class HomelabHUD:
         self.port = port
         self.running = False
         self.collectors = {}
+        self.generic_collectors = {}  # Store generic collectors keyed by slide ID
+        self.generic_collectors_lock = threading.Lock()  # Thread-safe access
         self.renderer = SlideRenderer()
         self.video_output = None
         self.flask_app = None
@@ -74,111 +73,177 @@ class HomelabHUD:
             return render_template('index.html')
     
     def _init_collectors(self):
-        """Initialize data collectors."""
-        # ARM Collector
-        if self.api_config.get("arm", {}).get("enabled", True):
-            try:
-                self.collectors["arm"] = ARMCollector(self.api_config.get("arm", {}))
-                print("ARM collector initialized")
-            except Exception as e:
-                print(f"Failed to initialize ARM collector: {e}")
-        
-        # Pi-hole Collector
-        if self.api_config.get("pihole", {}).get("enabled", True):
-            try:
-                self.collectors["pihole"] = PiHoleCollector(self.api_config.get("pihole", {}))
-                print("Pi-hole collector initialized")
-            except Exception as e:
-                print(f"Failed to initialize Pi-hole collector: {e}")
-        
-        # Plex Collector
-        if self.api_config.get("plex", {}).get("enabled", True):
-            try:
-                self.collectors["plex"] = PlexCollector(self.api_config.get("plex", {}))
-                print("Plex collector initialized")
-            except Exception as e:
-                print(f"Failed to initialize Plex collector: {e}")
-        
-        # System Collector
-        if self.api_config.get("system", {}).get("enabled", True):
-            try:
-                self.collectors["system"] = SystemCollector(self.api_config.get("system", {}))
-                print("System collector initialized")
-            except Exception as e:
-                print(f"Failed to initialize System collector: {e}")
-        
-        # Weather Collector
-        if self.api_config.get("weather", {}).get("enabled", True):
-            try:
-                self.collectors["weather"] = WeatherCollector(self.api_config.get("weather", {}))
-                print("Weather collector initialized")
-            except Exception as e:
-                print(f"Failed to initialize Weather collector: {e}")
+        """Initialize data collectors - now using per-slide collectors."""
+        # Collectors are now created per-slide on demand
+        # Weather collector uses wttr.in which doesn't require global config
+        print("Per-slide collectors will be created on demand")
     
     def _should_display_slide(self, slide: dict) -> bool:
-        """Check if slide should be displayed based on conditional logic.
+        """Check if slide should be displayed based on conditional logic using slide types."""
+        slide_type_name = slide.get("type", "")
+        slide_type = SlideTypeRegistry.get(slide_type_name)
         
-        If conditional is True, only display if the slide has meaningful data.
-        Otherwise, always display.
-        """
-        if not slide.get("conditional", False):
-            return True
+        if not slide_type:
+            # Unknown slide type - default behavior
+            return not slide.get("conditional", False)
         
-        # For conditional slides, check if this slide has data to display
-        slide_type = slide.get("type", "")
-        data = self._get_slide_data(slide_type, slide)
+        # Get collector for this slide
+        collector = None
+        if slide.get("service_config") or slide.get("api_config"):
+            try:
+                config_data = {
+                    "service_config": slide.get("service_config", {}),
+                    "api_config": slide.get("api_config")
+                }
+                collector = slide_type.create_collector(config_data)
+            except Exception as e:
+                print(f"Error creating collector for slide {slide.get('id')}: {e}")
+                collector = None
         
-        # Check if data exists and is meaningful based on slide type
-        if data is None:
-            return False
+        # Get data from collector
+        data = None
+        if collector:
+            try:
+                # For weather, pass city if available
+                if slide_type_name == "weather" and hasattr(collector, "get_data_for_city"):
+                    city = slide.get("city")
+                    data = collector.get_data_for_city(city) if city else collector.get_data()
+                else:
+                    data = collector.get_data()
+            except Exception as e:
+                print(f"Error fetching data for slide {slide.get('id')}: {e}")
+                data = None
         
-        # For Plex, check if there are active streams
-        if slide_type == "plex_now_playing":
-            return data.get("session_count", 0) > 0
-        
-        # For ARM, if data exists it means there's an active rip
-        # (ARM collector returns None if no active jobs)
-        if slide_type == "arm_rip_progress":
-            return True  # data is not None means there's an active rip
-        
-        # For other slide types, if data exists, display it
-        # (Pi-hole, System, Weather should always have data if collector is working)
-        return True
+        # Use slide type's should_display method
+        return slide_type.should_display(collector, data, slide)
     
-    def _get_slide_data(self, slide_type: str, slide: dict = None) -> dict:
-        """Get data for a slide type from appropriate collector."""
-        # Image and static text slides don't need data from collectors
-        if slide_type == "image" or slide_type == "static_text":
+    def _get_slide_data(self, slide_type_name: str, slide: dict = None) -> dict:
+        """Get data for a slide using per-slide collectors."""
+        if not slide:
             return None
-        elif slide_type == "arm_rip_progress" and "arm" in self.collectors:
-            return self.collectors["arm"].get_data()
-        elif slide_type == "pihole_summary" and "pihole" in self.collectors:
-            return self.collectors["pihole"].get_data()
-        elif slide_type == "plex_now_playing" and "plex" in self.collectors:
-            return self.collectors["plex"].get_data()
-        elif slide_type == "system_stats" and "system" in self.collectors:
-            return self.collectors["system"].get_data()
-        elif slide_type == "weather" and "weather" in self.collectors:
-            # Get city from slide config, fallback to global config
-            city = (slide or {}).get("city") if slide else None
-            return self.collectors["weather"].get_data_for_city(city)
         
-        return None
+        slide_type = SlideTypeRegistry.get(slide_type_name)
+        if not slide_type:
+            return None
+        
+        # Create collector for this slide
+        collector = None
+        if slide.get("service_config") or slide.get("api_config"):
+            try:
+                config_data = {
+                    "service_config": slide.get("service_config", {}),
+                    "api_config": slide.get("api_config")
+                }
+                collector = slide_type.create_collector(config_data)
+            except Exception as e:
+                print(f"Error creating collector for slide {slide.get('id')}: {e}")
+                return None
+        
+        if not collector:
+            return None
+        
+        # Get data from collector
+        try:
+            # For weather, pass city if available
+            if slide_type_name == "weather" and hasattr(collector, "get_data_for_city"):
+                city = slide.get("city")
+                return collector.get_data_for_city(city) if city else collector.get_data()
+            else:
+                return collector.get_data()
+        except Exception as e:
+            print(f"Error fetching data for slide {slide.get('id')}: {e}")
+            return None
     
-    def _get_collector_for_type(self, slide_type: str):
-        """Get the collector instance for a given slide type."""
-        if slide_type == "arm_rip_progress" and "arm" in self.collectors:
-            return self.collectors["arm"]
-        elif slide_type == "pihole_summary" and "pihole" in self.collectors:
-            return self.collectors["pihole"]
-        elif slide_type == "plex_now_playing" and "plex" in self.collectors:
-            return self.collectors["plex"]
-        elif slide_type == "system_stats" and "system" in self.collectors:
-            return self.collectors["system"]
-        elif slide_type == "weather" and "weather" in self.collectors:
-            return self.collectors["weather"]
+    def _get_custom_slide_data(self, slide: dict) -> dict:
+        """
+        Get data for a custom slide using its generic collector.
         
-        return None
+        Args:
+            slide: Slide configuration dictionary
+        
+        Returns:
+            Data dictionary from generic collector or None
+        """
+        slide_id = slide.get("id")
+        if not slide_id:
+            return None
+        
+        api_config = slide.get("api_config")
+        if not api_config:
+            # No API config - return empty dict (widgets may have static data)
+            return {}
+        
+        # Get or create generic collector for this slide
+        with self.generic_collectors_lock:
+            collector = self.generic_collectors.get(slide_id)
+            
+            if collector is None:
+                # Create new collector
+                try:
+                    collector = GenericCollector(api_config, slide_id=slide_id)
+                    self.generic_collectors[slide_id] = collector
+                    print(f"Created generic collector for slide {slide_id}")
+                except Exception as e:
+                    print(f"Failed to create generic collector for slide {slide_id}: {e}")
+                    return None
+        
+        # Get data from collector
+        return collector.get_data()
+    
+    def _update_generic_collectors(self):
+        """
+        Update generic collectors based on current slides configuration.
+        Removes collectors for deleted slides and updates configs for changed slides.
+        """
+        from config import get_slides_config
+        
+        config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Get set of current custom slide IDs
+        current_custom_slide_ids = {s.get("id") for s in slides if s.get("type") == "custom" and s.get("id")}
+        
+        with self.generic_collectors_lock:
+            # Remove collectors for slides that no longer exist
+            to_remove = [sid for sid in self.generic_collectors.keys() if sid not in current_custom_slide_ids]
+            for sid in to_remove:
+                del self.generic_collectors[sid]
+                print(f"Removed generic collector for slide {sid}")
+            
+            # Update or create collectors for existing custom slides
+            for slide in slides:
+                if slide.get("type") != "custom":
+                    continue
+                
+                slide_id = slide.get("id")
+                if not slide_id:
+                    continue
+                
+                api_config = slide.get("api_config")
+                if not api_config:
+                    continue
+                
+                # Check if collector exists and needs update
+                collector = self.generic_collectors.get(slide_id)
+                if collector is None:
+                    # Create new collector
+                    try:
+                        collector = GenericCollector(api_config, slide_id=slide_id)
+                        self.generic_collectors[slide_id] = collector
+                        print(f"Created generic collector for slide {slide_id}")
+                    except Exception as e:
+                        print(f"Failed to create generic collector for slide {slide_id}: {e}")
+                else:
+                    # Update existing collector config (will use new config on next fetch)
+                    # For simplicity, we'll just recreate the collector if config changed
+                    # A more sophisticated implementation could update in place
+                    try:
+                        new_collector = GenericCollector(api_config, slide_id=slide_id)
+                        self.generic_collectors[slide_id] = new_collector
+                        print(f"Updated generic collector for slide {slide_id}")
+                    except Exception as e:
+                        print(f"Failed to update generic collector for slide {slide_id}: {e}")
+    
     
     def _run_display_loop(self):
         """Main display loop."""
@@ -192,6 +257,9 @@ class HomelabHUD:
                 slides_config = get_slides_config()
                 slides = sorted(slides_config.get("slides", []), key=lambda x: x.get("order", 0))
                 
+                # Update generic collectors for custom slides
+                self._update_generic_collectors()
+                
                 if not slides:
                     print("No slides configured. Waiting...")
                     time.sleep(5)
@@ -202,25 +270,84 @@ class HomelabHUD:
                     if not self.running:
                         break
                     
-                    # Check conditional display - skip if conditional and no data
-                    # Static text and image slides are never conditional
+                    # Get slide configuration
                     slide_type = slide.get("type", "")
-                    if slide_type != "static_text" and slide_type != "image" and not self._should_display_slide(slide):
+                    slide_type_obj = SlideTypeRegistry.get(slide_type)
+                    
+                    if not slide_type_obj:
+                        print(f"Unknown slide type: {slide_type}, skipping")
+                        continue
+                    
+                    # Check conditional display using slide type
+                    # Create temporary collector for conditional check
+                    temp_collector = None
+                    if slide.get("service_config") or slide.get("api_config"):
+                        try:
+                            config_data = {
+                                "service_config": slide.get("service_config", {}),
+                                "api_config": slide.get("api_config")
+                            }
+                            temp_collector = slide_type_obj.create_collector(config_data)
+                        except Exception as e:
+                            print(f"Error creating collector for conditional check: {e}")
+                    
+                    # Get temp data for conditional check
+                    temp_data = None
+                    if temp_collector:
+                        try:
+                            if slide_type == "weather" and hasattr(temp_collector, "get_data_for_city"):
+                                city = slide.get("city")
+                                temp_data = temp_collector.get_data_for_city(city) if city else temp_collector.get_data()
+                            else:
+                                temp_data = temp_collector.get_data()
+                        except Exception as e:
+                            print(f"Error fetching temp data for conditional check: {e}")
+                    
+                    # Check if should display
+                    if not slide_type_obj.should_display(temp_collector, temp_data, slide):
                         print(f"Skipping slide '{slide.get('title')}' (conditional slide has no data)")
-                        # Update current slide to None when skipping
                         with self.current_slide_lock:
                             self.current_slide = None
                         continue
                     
-                    # Get slide configuration
-                    slide_type = slide.get("type", "")
                     title = slide.get("title", "")
                     display_duration = slide.get("duration", 10)  # How long to display the slide
                     refresh_duration = slide.get("refresh_duration", 5)  # How often to refresh data
                     
-                    # Initial data fetch and render
-                    data = self._get_slide_data(slide_type, slide)
-                    image = self.renderer.render(slide_type, data, title, slide)
+                    # Use the collector we created for conditional check, or create new one
+                    collector = temp_collector
+                    if not collector and (slide.get("service_config") or slide.get("api_config")):
+                        try:
+                            config_data = {
+                                "service_config": slide.get("service_config", {}),
+                                "api_config": slide.get("api_config")
+                            }
+                            collector = slide_type_obj.create_collector(config_data)
+                        except Exception as e:
+                            print(f"Error creating collector for slide {slide.get('id')}: {e}")
+                    
+                    # Get initial data
+                    data = temp_data if temp_data is not None else None
+                    if data is None and collector:
+                        try:
+                            if slide_type == "weather" and hasattr(collector, "get_data_for_city"):
+                                city = slide.get("city")
+                                data = collector.get_data_for_city(city) if city else collector.get_data()
+                            else:
+                                data = collector.get_data()
+                        except Exception as e:
+                            print(f"Error fetching initial data for slide {slide.get('id')}: {e}")
+                            data = None
+                    
+                    # Render using slide type
+                    try:
+                        image = slide_type_obj.render(self.renderer, data, slide)
+                    except Exception as e:
+                        print(f"Error rendering slide {slide.get('id')}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        continue
+                    
                     image_copy = image.copy()
                     
                     with self.current_slide_lock:
@@ -264,16 +391,32 @@ class HomelabHUD:
                             print(f"Refreshing slide '{title}' at {elapsed:.1f}s (refresh interval: {refresh_duration}s)")
                             
                             # Clear cache to force fresh data fetch
-                            collector = self._get_collector_for_type(slide_type)
                             if collector and hasattr(collector, "clear_cache"):
                                 collector.clear_cache()
                             
-                            # Refresh data (will now fetch fresh data since cache is cleared)
-                            data = self._get_slide_data(slide_type, slide)
+                            # Refresh data using collector
+                            if collector:
+                                try:
+                                    if slide_type == "weather" and hasattr(collector, "get_data_for_city"):
+                                        city = slide.get("city")
+                                        data = collector.get_data_for_city(city) if city else collector.get_data()
+                                    else:
+                                        data = collector.get_data()
+                                except Exception as e:
+                                    print(f"Error refreshing data for slide {slide.get('id')}: {e}")
+                                    data = None
+                            else:
+                                data = None
                             
-                            # Re-render slide with new data
-                            image = self.renderer.render(slide_type, data, title, slide)
-                            image_copy = image.copy()
+                            # Re-render using slide type
+                            try:
+                                image = slide_type_obj.render(self.renderer, data, slide)
+                                image_copy = image.copy()
+                            except Exception as e:
+                                print(f"Error re-rendering slide {slide.get('id')}: {e}")
+                                import traceback
+                                traceback.print_exc()
+                                continue
                             
                             # Update current slide (thread-safe)
                             with self.current_slide_lock:
@@ -286,7 +429,7 @@ class HomelabHUD:
                                     "timestamp": time.time()
                                 }
                             
-                            # Display updated frame - this is critical for updating the display
+                            # Display updated frame
                             if self.export_frames:
                                 # Export to file
                                 export_dir = DATA_DIR / "preview"
@@ -295,7 +438,7 @@ class HomelabHUD:
                                 image.save(filename)
                                 print(f"Exported refreshed frame: {filename}")
                             else:
-                                # CRITICAL: Update the actual display with the new frame
+                                # Update the actual display with the new frame
                                 if self.video_output.display_frame(image):
                                     print(f"Display updated with refreshed frame at {elapsed:.1f}s")
                                 else:

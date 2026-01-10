@@ -19,10 +19,40 @@ document.addEventListener('DOMContentLoaded', () => {
     startCurrentSlideRefresh();
     startSlidePreviewRefresh();
     updateWindowStatusBar();
+    
+    // Check for hash on initial load
+    handleHashNavigation();
+    
+    // Listen for hash changes (browser back/forward buttons)
+    window.addEventListener('hashchange', handleHashNavigation);
 });
 
 // Event Listeners
 function setupEventListeners() {
+    // Apple menu - About dialog
+    const appleMenu = document.querySelector('.apple-menu');
+    if (appleMenu) {
+        appleMenu.addEventListener('click', () => {
+            openAboutDialog();
+        });
+    }
+    
+    // About dialog close button
+    const aboutCloseBtn = document.getElementById('aboutCloseBtn');
+    if (aboutCloseBtn) {
+        aboutCloseBtn.addEventListener('click', closeAboutDialog);
+    }
+    
+    // Close About dialog on outside click
+    const aboutModal = document.getElementById('aboutModal');
+    if (aboutModal) {
+        aboutModal.addEventListener('click', (e) => {
+            if (e.target === aboutModal) {
+                closeAboutDialog();
+            }
+        });
+    }
+    
     // Add slide button
     document.getElementById('addSlideBtn').addEventListener('click', () => {
         openSlideModal();
@@ -53,12 +83,10 @@ function setupEventListeners() {
     
     // Conditional checkbox - no longer needs to show/hide anything
     
-    // Slide type change - toggle weather, image, and static text settings
-    document.getElementById('slideType').addEventListener('change', (e) => {
+    // Slide type change - load schema and render config fields
+    document.getElementById('slideType').addEventListener('change', async (e) => {
         const slideType = e.target.value;
-        toggleWeatherSettings(slideType === 'weather');
-        toggleStaticTextSettings(slideType === 'static_text');
-        toggleImageSettings(slideType === 'image');
+        await loadSlideTypeConfig(slideType);
         clearValidationErrors(); // Clear validation when type changes
     });
     
@@ -76,6 +104,12 @@ function setupEventListeners() {
     
     // Save config button
     document.getElementById('saveConfigBtn').addEventListener('click', saveConfig);
+    
+    // Slide modal API test button
+    const slideTestApiBtn = document.getElementById('slideTestApiBtn');
+    if (slideTestApiBtn) {
+        slideTestApiBtn.addEventListener('click', testSlideAPI);
+    }
     
     // Debug buttons - Plex
     if (document.getElementById('refreshDebugBtn')) {
@@ -114,37 +148,93 @@ function setupEventListeners() {
     });
 }
 
+// Switch to a specific tab by name
+function switchToTab(tabName, updateHash = true) {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    let targetBtn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+    
+    if (!targetBtn) {
+        // Invalid tab name, default to 'main'
+        tabName = 'main';
+        targetBtn = document.querySelector('.tab-btn[data-tab="main"]');
+        if (!targetBtn) {
+            return; // No tabs found at all
+        }
+    }
+    
+    // Check if tab is already active to avoid unnecessary work
+    if (targetBtn.classList.contains('active')) {
+        return;
+    }
+    
+    // Remove active class from all tabs
+    tabButtons.forEach(b => b.classList.remove('active'));
+    tabContents.forEach(c => {
+        c.classList.remove('active');
+        c.style.display = 'none';
+    });
+    
+    // Add active class to selected tab
+    targetBtn.classList.add('active');
+    const targetContent = document.getElementById(`${tabName}Tab`);
+    if (targetContent) {
+        targetContent.classList.add('active');
+        targetContent.style.display = 'block';
+    }
+    
+    // Load content when switching to specific tabs
+    if (tabName === 'config') {
+        loadConfig();
+    } else if (tabName === 'debug') {
+        loadDebugLogs();
+        loadArmDebugLogs();
+    } else if (tabName === 'designer') {
+        // Widget designer tab - already initialized on DOMContentLoaded
+        // Just ensure designer is visible
+    }
+    
+    // Update URL hash if requested (avoid infinite loop when called from hashchange)
+    if (updateHash && window.location.hash !== `#${tabName}`) {
+        window.history.replaceState(null, '', `#${tabName}`);
+    }
+}
+
+// Handle hash navigation from URL
+function handleHashNavigation() {
+    const hash = window.location.hash.substring(1); // Remove the # symbol
+    const validTabs = ['main', 'designer', 'config', 'debug'];
+    
+    if (hash && validTabs.includes(hash)) {
+        // Don't update hash again since we're responding to hash change
+        switchToTab(hash, false);
+    } else {
+        // No hash or invalid hash, default to main tab
+        if (!hash || !validTabs.includes(hash)) {
+            // Set hash to main if no hash exists
+            if (!hash) {
+                window.history.replaceState(null, '', '#main');
+            }
+            switchToTab('main', false);
+        }
+    }
+}
+
 // Tab functionality
 function setupTabs() {
     const tabButtons = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
     
     tabButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
             const targetTab = btn.getAttribute('data-tab');
             
-            // Remove active class from all tabs
-            tabButtons.forEach(b => b.classList.remove('active'));
-            tabContents.forEach(c => {
-                c.classList.remove('active');
-                c.style.display = 'none';
-            });
+            // Switch tab immediately for responsive UI
+            switchToTab(targetTab, false);
             
-            // Add active class to selected tab
-            btn.classList.add('active');
-            const targetContent = document.getElementById(`${targetTab}Tab`);
-            if (targetContent) {
-                targetContent.classList.add('active');
-                targetContent.style.display = 'block';
-            }
-            
-            // Load content when switching to specific tabs
-            if (targetTab === 'config') {
-                loadConfig();
-            } else if (targetTab === 'debug') {
-                loadDebugLogs();
-                loadArmDebugLogs();
-            }
+            // Update URL hash - this will trigger hashchange event, but we've already switched so it won't do anything
+            // Setting location.hash automatically adds to browser history for back/forward support
+            window.location.hash = targetTab;
         });
     });
 }
@@ -739,8 +829,454 @@ function toggleStaticTextSettings(show) {
     document.getElementById('staticTextSettings').style.display = show ? 'block' : 'none';
 }
 
+// Get API config from slide modal form
+function getAPIConfigFromSlideModal() {
+    const endpoint = document.getElementById('slideApiEndpoint')?.value.trim();
+    if (!endpoint) return null;
+    
+    const method = document.getElementById('slideApiMethod')?.value || 'GET';
+    const headersText = document.getElementById('slideApiHeaders')?.value.trim() || '{}';
+    const bodyText = document.getElementById('slideApiBody')?.value.trim() || null;
+    const dataPath = document.getElementById('slideApiDataPath')?.value.trim() || '$';
+    const refreshInterval = parseInt(document.getElementById('slideApiRefreshInterval')?.value || 30);
+    
+    let headers = {};
+    try {
+        headers = JSON.parse(headersText);
+    } catch (e) {
+        console.error('Invalid headers JSON:', e);
+        headers = {};
+    }
+    
+    let body = null;
+    if (bodyText && (method === 'POST' || method === 'PUT')) {
+        try {
+            body = JSON.parse(bodyText);
+        } catch (e) {
+            body = bodyText; // Use as string if not valid JSON
+        }
+    }
+    
+    return {
+        endpoint: endpoint,
+        method: method,
+        headers: headers,
+        body: body,
+        data_path: dataPath,
+        refresh_interval: refreshInterval,
+        enabled: true
+    };
+}
+
+// Update API config form in slide modal
+function updateAPIConfigInSlideModal(apiConfig) {
+    if (!apiConfig) {
+        // Reset to defaults
+        const endpointInput = document.getElementById('slideApiEndpoint');
+        const methodSelect = document.getElementById('slideApiMethod');
+        const headersTextarea = document.getElementById('slideApiHeaders');
+        const bodyTextarea = document.getElementById('slideApiBody');
+        const dataPathInput = document.getElementById('slideApiDataPath');
+        const refreshInput = document.getElementById('slideApiRefreshInterval');
+        
+        if (endpointInput) endpointInput.value = '';
+        if (methodSelect) methodSelect.value = 'GET';
+        if (headersTextarea) headersTextarea.value = '';
+        if (bodyTextarea) bodyTextarea.value = '';
+        if (dataPathInput) dataPathInput.value = '$';
+        if (refreshInput) refreshInput.value = 30;
+        return;
+    }
+    
+    const endpointInput = document.getElementById('slideApiEndpoint');
+    const methodSelect = document.getElementById('slideApiMethod');
+    const headersTextarea = document.getElementById('slideApiHeaders');
+    const bodyTextarea = document.getElementById('slideApiBody');
+    const dataPathInput = document.getElementById('slideApiDataPath');
+    const refreshInput = document.getElementById('slideApiRefreshInterval');
+    
+    if (endpointInput) endpointInput.value = apiConfig.endpoint || '';
+    if (methodSelect) methodSelect.value = apiConfig.method || 'GET';
+    if (headersTextarea) headersTextarea.value = JSON.stringify(apiConfig.headers || {}, null, 2);
+    if (bodyTextarea) bodyTextarea.value = apiConfig.body ? (typeof apiConfig.body === 'string' ? apiConfig.body : JSON.stringify(apiConfig.body, null, 2)) : '';
+    if (dataPathInput) dataPathInput.value = apiConfig.data_path || '$';
+    if (refreshInput) refreshInput.value = apiConfig.refresh_interval || 30;
+}
+
+// Setup collapsible API section in slide modal
+function setupSlideAPISection() {
+    const apiHeader = document.getElementById('slideApiConfigHeader');
+    const apiContent = document.getElementById('slideApiConfigContent');
+    
+    if (!apiHeader || !apiContent) return;
+    
+    // Remove existing listener if any
+    const newHeader = apiHeader.cloneNode(true);
+    apiHeader.parentNode.replaceChild(newHeader, apiHeader);
+    
+    newHeader.addEventListener('click', () => {
+        const isExpanded = apiContent.style.display !== 'none';
+        apiContent.style.display = isExpanded ? 'none' : 'block';
+        newHeader.classList.toggle('expanded', !isExpanded);
+        
+        const icon = newHeader.querySelector('.collapse-icon');
+        if (icon) {
+            icon.textContent = isExpanded ? '▶' : '▼';
+        }
+    });
+}
+
+// Load slide type configuration schema and render fields
+async function loadSlideTypeConfig(slideTypeName) {
+    try {
+        const response = await fetch(`${API_BASE}/slides/types/${slideTypeName}/schema`);
+        if (!response.ok) {
+            throw new Error(`Failed to load schema: ${response.statusText}`);
+        }
+        const schema = await response.json();
+        renderSlideTypeConfig(schema);
+    } catch (error) {
+        console.error('Error loading slide type config:', error);
+        showError(`Failed to load slide type configuration: ${error.message}`);
+    }
+}
+
+// Render slide type configuration fields based on schema
+function renderSlideTypeConfig(schema) {
+    const container = document.getElementById('slideServiceConfig');
+    if (!container) return;
+    
+    // Clear existing fields
+    container.innerHTML = '';
+    
+    // Hide/show conditional checkbox based on schema
+    const conditionalContainer = document.getElementById('slideConditionalContainer');
+    const conditionalHelp = document.getElementById('slideConditionalHelp');
+    const conditionalCheckbox = document.getElementById('slideConditional');
+    
+    if (schema.conditional) {
+        if (conditionalContainer) conditionalContainer.style.display = 'block';
+        if (conditionalHelp) conditionalHelp.style.display = 'block';
+        if (conditionalCheckbox) conditionalCheckbox.checked = schema.default_conditional !== false;
+    } else {
+        if (conditionalContainer) conditionalContainer.style.display = 'none';
+        if (conditionalHelp) conditionalHelp.style.display = 'none';
+        if (conditionalCheckbox) conditionalCheckbox.checked = false;
+    }
+    
+    // Hide/show old API section based on slide type
+    const slideType = document.getElementById('slideType')?.value;
+    const oldApiSection = document.querySelector('.slide-api-section');
+    if (oldApiSection) {
+        // Only show old API section for custom slides (they use api_config separately)
+        oldApiSection.style.display = slideType === 'custom' ? 'block' : 'none';
+    }
+    
+    // Hide legacy settings for slide types that now use dynamic config
+    toggleWeatherSettings(false); // Always hide legacy - use schema
+    toggleStaticTextSettings(false); // Always hide legacy - use schema
+    toggleImageSettings(false); // Always hide legacy - use schema (but keep image select for file upload)
+    
+    // Show note if present
+    if (schema.note) {
+        const noteDiv = document.createElement('p');
+        noteDiv.className = 'schema-note';
+        noteDiv.style.cssText = 'color: #666; font-size: 13px; margin-bottom: 16px; font-style: italic;';
+        noteDiv.textContent = schema.note;
+        container.appendChild(noteDiv);
+    }
+    
+    // Render fields based on schema
+    schema.fields.forEach(fieldGroup => {
+        if (fieldGroup.type === 'group') {
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'service-config-group';
+            groupDiv.style.cssText = 'margin-bottom: 20px;';
+            
+            const groupTitle = document.createElement('h4');
+            groupTitle.style.cssText = 'margin-bottom: 12px; font-size: 14px; font-weight: bold; color: #000;';
+            groupTitle.textContent = fieldGroup.label;
+            groupDiv.appendChild(groupTitle);
+            
+            fieldGroup.fields.forEach(field => {
+                const fieldDiv = createConfigFieldElement(field);
+                groupDiv.appendChild(fieldDiv);
+            });
+            
+            container.appendChild(groupDiv);
+        } else {
+            // Direct field (not in a group - like city, temp_unit, text, image_path)
+            const fieldDiv = createConfigFieldElement(fieldGroup);
+            container.appendChild(fieldDiv);
+        }
+    });
+    
+    // Special handling for image slides - use custom image select/upload UI
+    // Filter out image_path from schema fields since we handle it separately
+    if (slideType === 'image') {
+        schema.fields = schema.fields.filter(f => f.name !== 'image_path');
+        
+        // Add image upload/select UI
+        const imageDiv = document.createElement('div');
+        imageDiv.className = 'image-upload-section';
+        imageDiv.style.cssText = 'margin-top: 16px;';
+        imageDiv.innerHTML = `
+            <label for="imageUpload">Upload New Image:</label>
+            <input type="file" id="imageUpload" accept="image/*" style="width: 100%; padding: 6px; margin-top: 4px;">
+            <small style="display: block; color: #666; margin-top: 4px; font-size: 12px;">
+                Supported formats: PNG, JPG, GIF, BMP, WEBP (max 10MB). Images will be displayed in black and white with dithering.
+            </small>
+            <div style="margin-top: 16px;">
+                <label for="imageSelect">Or Select Existing Image:</label>
+                <select id="imageSelect" style="width: 100%; padding: 6px; margin-top: 4px;">
+                    <option value="">-- Select an image --</option>
+                </select>
+            </div>
+            <div id="imagePreview" style="margin-top: 16px; display: none;">
+                <img id="imagePreviewImg" src="" alt="Image preview" style="max-width: 100%; max-height: 200px; border: 1px solid #ccc; border-radius: 4px;">
+                <div id="imageInfo" style="margin-top: 8px; font-size: 12px; color: #666;"></div>
+            </div>
+            <input type="hidden" id="imagePath">
+        `;
+        container.appendChild(imageDiv);
+        
+        // Load existing images
+        loadExistingImages().then(() => {
+            const imageSelect = document.getElementById('imageSelect');
+            const imageUpload = document.getElementById('imageUpload');
+            if (imageSelect) {
+                imageSelect.addEventListener('change', handleImageSelect);
+            }
+            if (imageUpload) {
+                imageUpload.addEventListener('change', handleImageUpload);
+            }
+        });
+    }
+}
+
+// Create a form field element from schema field definition
+function createConfigFieldElement(field) {
+    const div = document.createElement('div');
+    div.className = 'config-field';
+    div.style.cssText = 'margin-bottom: 12px;';
+    
+    const label = document.createElement('label');
+    label.textContent = field.label;
+    label.setAttribute('for', `serviceConfig_${field.name}`);
+    if (field.required) {
+        label.classList.add('required');
+    }
+    div.appendChild(label);
+    
+    let input;
+    switch (field.type) {
+        case 'url':
+        case 'text':
+            input = document.createElement('input');
+            input.type = field.type === 'url' ? 'url' : 'text';
+            input.id = `serviceConfig_${field.name}`;
+            input.value = field.default || '';
+            input.placeholder = field.placeholder || '';
+            input.style.cssText = 'width: 100%; padding: 6px; margin-top: 4px;';
+            break;
+        case 'password':
+            input = document.createElement('input');
+            input.type = 'password';
+            input.id = `serviceConfig_${field.name}`;
+            input.value = field.default || '';
+            input.placeholder = field.placeholder || '';
+            input.style.cssText = 'width: 100%; padding: 6px; margin-top: 4px;';
+            break;
+        case 'number':
+            input = document.createElement('input');
+            input.type = 'number';
+            input.id = `serviceConfig_${field.name}`;
+            input.value = field.default || '';
+            input.min = field.min || '';
+            input.max = field.max || '';
+            input.style.cssText = 'width: 100%; padding: 6px; margin-top: 4px;';
+            break;
+        case 'select':
+            input = document.createElement('select');
+            input.id = `serviceConfig_${field.name}`;
+            input.style.cssText = 'width: 100%; padding: 6px; margin-top: 4px;';
+            if (field.options) {
+                field.options.forEach(option => {
+                    const optionEl = document.createElement('option');
+                    optionEl.value = option.value;
+                    optionEl.textContent = option.label;
+                    if (option.value === field.default) {
+                        optionEl.selected = true;
+                    }
+                    input.appendChild(optionEl);
+                });
+            }
+            break;
+        case 'textarea':
+            input = document.createElement('textarea');
+            input.id = `serviceConfig_${field.name}`;
+            input.value = field.default || '';
+            input.placeholder = field.placeholder || '';
+            input.rows = field.rows || 3;
+            input.style.cssText = 'width: 100%; padding: 6px; margin-top: 4px; font-family: monospace; resize: vertical;';
+            break;
+        case 'file':
+            input = document.createElement('input');
+            input.type = 'file';
+            input.id = `serviceConfig_${field.name}`;
+            input.accept = field.accept || '*/*';
+            input.style.cssText = 'width: 100%; padding: 6px; margin-top: 4px;';
+            break;
+        default:
+            input = document.createElement('input');
+            input.type = 'text';
+            input.id = `serviceConfig_${field.name}`;
+            input.value = field.default || '';
+            input.style.cssText = 'width: 100%; padding: 6px; margin-top: 4px;';
+    }
+    
+    div.appendChild(input);
+    
+    if (field.help) {
+        const helpText = document.createElement('small');
+        helpText.style.cssText = 'display: block; color: #666; margin-top: 4px; font-size: 12px;';
+        helpText.textContent = field.help;
+        div.appendChild(helpText);
+    }
+    
+    return div;
+}
+
+// Get service config from form
+function getServiceConfigFromForm(schema) {
+    const serviceConfig = {};
+    const apiConfig = {};
+    
+    if (!schema || !schema.fields) return { service_config: serviceConfig, api_config: apiConfig };
+    
+    schema.fields.forEach(fieldGroup => {
+        if (fieldGroup.type === 'group') {
+            const configDict = fieldGroup.name === 'service_config' ? serviceConfig : apiConfig;
+            
+            fieldGroup.fields.forEach(field => {
+                const input = document.getElementById(`serviceConfig_${field.name}`);
+                if (input) {
+                    if (field.type === 'number') {
+                        configDict[field.name] = input.value ? parseInt(input.value) : (field.default || null);
+                    } else if (field.type === 'textarea') {
+                        // For JSON fields like headers, try to parse
+                        if (field.name === 'headers' || field.name === 'body') {
+                            try {
+                                configDict[field.name] = JSON.parse(input.value || '{}');
+                            } catch (e) {
+                                configDict[field.name] = input.value || '';
+                            }
+                        } else {
+                            configDict[field.name] = input.value.trim();
+                        }
+                    } else {
+                        configDict[field.name] = input.value.trim();
+                    }
+                }
+            });
+        } else {
+            // Direct field (like city, temp_unit for weather)
+            const input = document.getElementById(`serviceConfig_${field.name}`);
+            if (input) {
+                if (field.type === 'number') {
+                    serviceConfig[field.name] = input.value ? parseInt(input.value) : (field.default || null);
+                } else {
+                    serviceConfig[field.name] = input.value.trim();
+                }
+            }
+        }
+    });
+    
+    return {
+        service_config: Object.keys(serviceConfig).length > 0 ? serviceConfig : undefined,
+        api_config: Object.keys(apiConfig).length > 0 ? apiConfig : undefined
+    };
+}
+
+// Populate service config form from slide data
+function populateServiceConfigForm(slide, schema) {
+    if (!schema || !schema.fields) return;
+    
+    const serviceConfig = slide.service_config || {};
+    const apiConfig = slide.api_config || {};
+    
+    schema.fields.forEach(fieldGroup => {
+        if (fieldGroup.type === 'group') {
+            const configDict = fieldGroup.name === 'service_config' ? serviceConfig : apiConfig;
+            
+            fieldGroup.fields.forEach(field => {
+                const input = document.getElementById(`serviceConfig_${field.name}`);
+                if (input && configDict[field.name] !== undefined) {
+                    if (field.type === 'textarea' && (field.name === 'headers' || field.name === 'body')) {
+                        // Format JSON for display
+                        input.value = typeof configDict[field.name] === 'string' 
+                            ? configDict[field.name] 
+                            : JSON.stringify(configDict[field.name], null, 2);
+                    } else {
+                        input.value = configDict[field.name];
+                    }
+                }
+            });
+        } else {
+            // Direct field (like city, temp_unit)
+            const input = document.getElementById(`serviceConfig_${field.name}`);
+            if (input && slide[field.name] !== undefined) {
+                input.value = slide[field.name];
+            }
+        }
+    });
+}
+
+// Test API from slide modal
+async function testSlideAPI() {
+    const apiConfig = getAPIConfigFromSlideModal();
+    if (!apiConfig || !apiConfig.endpoint) {
+        showError('Please enter an API endpoint');
+        return;
+    }
+    
+    const testResult = document.getElementById('slideApiTestResult');
+    if (testResult) {
+        testResult.style.display = 'block';
+        testResult.className = 'api-test-result';
+        testResult.innerHTML = 'Testing API...';
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/widgets/test-api`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ api_config: apiConfig })
+        });
+        
+        const data = await response.json();
+        
+        if (testResult) {
+            if (data.success) {
+                testResult.className = 'api-test-result success';
+                testResult.innerHTML = `✓ API Test Successful\n\nResult:\n${JSON.stringify(data.result, null, 2)}\n\nKeys: ${data.result_keys ? data.result_keys.join(', ') : 'N/A'}`;
+            } else {
+                testResult.className = 'api-test-result error';
+                testResult.innerHTML = `✗ API Test Failed\n\nError: ${data.error || 'Unknown error'}`;
+            }
+        }
+    } catch (error) {
+        if (testResult) {
+            testResult.className = 'api-test-result error';
+            testResult.innerHTML = `✗ API Test Failed\n\nError: ${error.message}`;
+        }
+    }
+}
+
 // Slide Modal
-function openSlideModal(slide = null) {
+async function openSlideModal(slide = null) {
     const modal = document.getElementById('slideModal');
     const form = document.getElementById('slideForm');
     
@@ -755,43 +1291,44 @@ function openSlideModal(slide = null) {
         document.getElementById('slideTitle').value = slide.title;
         document.getElementById('slideDuration').value = slide.duration;
         document.getElementById('slideRefreshDuration').value = slide.refresh_duration || 5;
+        
+        // Load schema and populate config fields
+        await loadSlideTypeConfig(slideType);
         document.getElementById('slideConditional').checked = slide.conditional || false;
         
-        // Weather-specific fields
-        toggleWeatherSettings(slideType === 'weather');
-        if (slideType === 'weather') {
-            document.getElementById('slideCity').value = slide.city || '';
-            document.getElementById('slideTempUnit').value = slide.temp_unit || 'C';
+        // Populate service config from slide
+        try {
+            const schemaResponse = await fetch(`${API_BASE}/slides/types/${slideType}/schema`);
+            if (schemaResponse.ok) {
+                const schema = await schemaResponse.json();
+                populateServiceConfigForm(slide, schema);
+            }
+        } catch (error) {
+            console.error('Error loading schema for edit:', error);
         }
         
-        // Image-specific fields
-        toggleImageSettings(slideType === 'image');
-        if (slideType === 'image') {
-            const imagePathField = document.getElementById('imagePath');
-            const imageSelect = document.getElementById('imageSelect');
-            if (slide.image_path) {
-                if (imagePathField) {
-                    imagePathField.value = slide.image_path;
-                }
-                // Set selected image
-                loadExistingImages().then(() => {
-                    if (imageSelect) {
-                        imageSelect.value = slide.image_path;
-                        // Load preview
-                        handleImageSelect({ target: imageSelect });
-                    }
-                });
+        // Legacy field handling (for backwards compatibility during transition)
+        if (slideType === 'weather') {
+            const cityInput = document.getElementById('serviceConfig_city');
+            if (cityInput && slide.city) {
+                cityInput.value = slide.city;
+            }
+            const tempUnitInput = document.getElementById('serviceConfig_temp_unit');
+            if (tempUnitInput && slide.temp_unit) {
+                tempUnitInput.value = slide.temp_unit;
             }
         }
         
-        // Static text-specific fields
-        toggleStaticTextSettings(slideType === 'static_text');
-        if (slideType === 'static_text') {
-            document.getElementById('slideText').value = slide.text || '';
-            document.getElementById('slideFontSize').value = slide.font_size || 'medium';
-            document.getElementById('slideTextAlign').value = slide.text_align || 'left';
-            document.getElementById('slideVerticalAlign').value = slide.vertical_align || 'center';
-            document.getElementById('slideTextColor').value = slide.text_color || 'text';
+        // Image-specific fields (legacy handling)
+        toggleImageSettings(false); // Don't use legacy, use schema
+        if (slideType === 'image' && slide.image_path) {
+            loadExistingImages().then(() => {
+                const imageSelect = document.getElementById('imageSelect');
+                if (imageSelect) {
+                    imageSelect.value = slide.image_path;
+                    handleImageSelect({ target: imageSelect });
+                }
+            });
         }
     } else {
         document.getElementById('modalTitle').textContent = 'Add Slide';
@@ -800,7 +1337,14 @@ function openSlideModal(slide = null) {
         toggleStaticTextSettings(false);
         toggleImageSettings(false);
         hideImagePreview();
+        
+        // Load schema for default slide type
+        const defaultType = document.getElementById('slideType').value;
+        await loadSlideTypeConfig(defaultType);
     }
+    
+    // Setup API section collapsible (for custom slides)
+    setupSlideAPISection();
     
     modal.style.display = 'block';
     // Focus first input
@@ -817,6 +1361,13 @@ function closeSlideModal() {
     clearValidationErrors();
     toggleWeatherSettings(false);
     toggleStaticTextSettings(false);
+    updateAPIConfigInSlideModal(null);
+    // Hide test result
+    const testResult = document.getElementById('slideApiTestResult');
+    if (testResult) {
+        testResult.style.display = 'none';
+        testResult.innerHTML = '';
+    }
 }
 
 // Handle Slide Submit
@@ -840,41 +1391,84 @@ async function handleSlideSubmit(e) {
         conditional: document.getElementById('slideConditional').checked,
     };
     
-    // condition_type is deprecated - conditional now means "hide if no data for this slide"
+    // Load schema and collect service_config and type-specific fields
+    try {
+        const schemaResponse = await fetch(`${API_BASE}/slides/types/${slideType}/schema`);
+        if (schemaResponse.ok) {
+            const schema = await schemaResponse.json();
+            const config = getServiceConfigFromForm(schema);
+            
+            // Add service_config if present
+            if (config.service_config && Object.keys(config.service_config).length > 0) {
+                formData.service_config = config.service_config;
+            }
+            
+            // For custom slides, also add api_config from old API section or from schema
+            if (slideType === 'custom') {
+                // Try to get from old API section first (for backwards compatibility)
+                const oldApiConfig = getAPIConfigFromSlideModal();
+                if (oldApiConfig && oldApiConfig.endpoint) {
+                    formData.api_config = oldApiConfig;
+                } else if (config.api_config && Object.keys(config.api_config).length > 0) {
+                    formData.api_config = config.api_config;
+                }
+            }
+            
+            // Extract direct fields (like city, temp_unit, text, image_path) from form
+            // These should be at the root level of formData (not in service_config)
+            schema.fields.forEach(fieldDef => {
+                if (fieldDef.type !== 'group') {
+                    // Direct field (like city, temp_unit, text, image_path)
+                    const input = document.getElementById(`serviceConfig_${fieldDef.name}`);
+                    if (input) {
+                        if (fieldDef.type === 'number') {
+                            const value = input.value ? parseInt(input.value) : (fieldDef.default || null);
+                            if (value !== null && value !== undefined) {
+                                formData[fieldDef.name] = value;
+                            }
+                        } else if (fieldDef.type === 'select') {
+                            const value = input.value;
+                            if (value) {
+                                formData[fieldDef.name] = value;
+                            }
+                        } else if (fieldDef.type === 'textarea') {
+                            const value = input.value.trim();
+                            if (value) {
+                                formData[fieldDef.name] = value;
+                            }
+                        } else if (fieldDef.type === 'file') {
+                            // File uploads handled separately via image select/upload
+                        } else {
+                            // text, url, password
+                            const value = input.value.trim();
+                            if (value) {
+                                formData[fieldDef.name] = value;
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error loading schema for save:', error);
+        showError('Failed to load slide configuration schema');
+        setButtonLoading(submitBtn, false);
+        return;
+    }
     
-        // Weather-specific fields
-        if (slideType === 'weather') {
-            const city = document.getElementById('slideCity').value.trim();
-            const tempUnit = document.getElementById('slideTempUnit').value;
-            if (city) {
-                formData.city = city;
-            }
-            formData.temp_unit = tempUnit;
+    // Legacy handling for image path (from image select)
+    if (slideType === 'image') {
+        const imageSelect = document.getElementById('imageSelect');
+        if (imageSelect && imageSelect.value) {
+            formData.image_path = imageSelect.value;
         }
-        
-        // Image-specific fields
-        if (slideType === 'image') {
-            const imagePath = document.getElementById('imagePath')?.value.trim();
-            if (imagePath) {
-                formData.image_path = imagePath;
-            }
+        // Also check for uploaded file
+        const imageUpload = document.getElementById('imageUpload');
+        if (imageUpload && imageUpload.files && imageUpload.files.length > 0) {
+            // File upload will be handled by the upload endpoint
+            // The image_path will be set after upload
         }
-        
-        // Static text-specific fields
-        if (slideType === 'static_text') {
-            const text = document.getElementById('slideText').value.trim();
-            const fontSize = document.getElementById('slideFontSize').value;
-            const textAlign = document.getElementById('slideTextAlign').value;
-            const verticalAlign = document.getElementById('slideVerticalAlign').value;
-            const textColor = document.getElementById('slideTextColor').value;
-            if (text) {
-                formData.text = text;
-            }
-            formData.font_size = fontSize;
-            formData.text_align = textAlign;
-            formData.vertical_align = verticalAlign;
-            formData.text_color = textColor;
-        }
+    }
     
     const slideId = document.getElementById('slideId').value;
     
@@ -1001,17 +1595,21 @@ function renderConfig() {
     setTimeout(() => {
         container.innerHTML = '';
         
-        // ARM Config
-        container.appendChild(createConfigSection('ARM', 'arm', config.arm || {}));
+        // Note about per-slide configuration
+        const noteDiv = document.createElement('div');
+        noteDiv.style.cssText = 'padding: 16px; margin-bottom: 16px; background: #e8f4f8; border: 1px solid #b3d9e6; border-radius: 4px;';
+        noteDiv.innerHTML = `
+            <p style="margin: 0 0 8px 0; font-weight: bold; color: #000;">Configuration moved to slides</p>
+            <p style="margin: 0; color: #333; font-size: 13px; line-height: 1.5;">
+                Service configurations (ARM, Pi-hole, Plex, System) are now configured individually for each slide 
+                in the Edit/New Slide dialog. Each slide can have its own API endpoints, credentials, and settings.
+            </p>
+        `;
+        container.appendChild(noteDiv);
         
-        // Pi-hole Config
-        container.appendChild(createConfigSection('Pi-hole', 'pihole', config.pihole || {}));
-        
-        // Plex Config
-        container.appendChild(createConfigSection('Plex', 'plex', config.plex || {}));
-        
-        // System Config
-        container.appendChild(createConfigSection('System', 'system', config.system || {}));
+        // Only show application-wide configs (like weather API key if needed)
+        // For now, weather uses wttr.in which doesn't need an API key
+        // If we add other application-wide settings in the future, add them here
     }, 50);
 }
 
@@ -1078,35 +1676,10 @@ async function saveConfig() {
     const saveBtn = document.getElementById('saveConfigBtn');
     setButtonLoading(saveBtn, true);
     
+    // Application-wide configuration (minimal - only weather if needed in future)
     const newConfig = {
-        arm: {
-            enabled: document.getElementById('config_arm_enabled').checked,
-            api_url: document.getElementById('config_arm_api_url').value.trim(),
-            api_key: document.getElementById('config_arm_api_key').value.trim(),
-            poll_interval: parseInt(document.getElementById('config_arm_poll_interval').value),
-            endpoint: document.getElementById('config_arm_endpoint').value.trim(),
-            conditional: true
-        },
-        pihole: {
-            enabled: document.getElementById('config_pihole_enabled').checked,
-            api_url: document.getElementById('config_pihole_api_url').value.trim(),
-            api_token: document.getElementById('config_pihole_api_key').value.trim(),
-            poll_interval: parseInt(document.getElementById('config_pihole_poll_interval').value),
-            conditional: false
-        },
-        plex: {
-            enabled: document.getElementById('config_plex_enabled').checked,
-            api_url: document.getElementById('config_plex_api_url').value.trim(),
-            api_token: document.getElementById('config_plex_api_key').value.trim(),
-            poll_interval: parseInt(document.getElementById('config_plex_poll_interval').value),
-            conditional: true
-        },
-        system: {
-            enabled: document.getElementById('config_system_enabled').checked,
-            poll_interval: parseInt(document.getElementById('config_system_poll_interval').value),
-            nas_mounts: document.getElementById('config_system_nas_mounts').value.split(',').map(s => s.trim()).filter(s => s),
-            conditional: false
-        }
+        weather: config.weather || {},  // Keep weather config if present
+        // Other application-wide settings can be added here
     };
     
     // Optimistic update
@@ -1124,7 +1697,7 @@ async function saveConfig() {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
-        showSuccess('Configuration saved successfully');
+        showSuccess('Application configuration saved successfully');
     } catch (error) {
         console.error('Error saving config:', error);
         showError(`Failed to save configuration: ${error.message}`);
@@ -1733,12 +2306,33 @@ async function clearArmDebugLogs() {
 }
 
 // Keyboard Shortcuts
+// About Dialog Functions
+function openAboutDialog() {
+    const aboutModal = document.getElementById('aboutModal');
+    if (aboutModal) {
+        aboutModal.style.display = 'block';
+        // Focus the close button for accessibility
+        setTimeout(() => {
+            const closeBtn = document.getElementById('aboutCloseBtn');
+            if (closeBtn) closeBtn.focus();
+        }, 50);
+    }
+}
+
+function closeAboutDialog() {
+    const aboutModal = document.getElementById('aboutModal');
+    if (aboutModal) {
+        aboutModal.style.display = 'none';
+    }
+}
+
 function setupKeyboardShortcuts() {
     // Escape key closes modals
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             const slideModal = document.getElementById('slideModal');
             const confirmModal = document.getElementById('confirmModal');
+            const aboutModal = document.getElementById('aboutModal');
             
             if (slideModal && slideModal.style.display === 'block') {
                 closeSlideModal();
@@ -1746,16 +2340,34 @@ function setupKeyboardShortcuts() {
             } else if (confirmModal && confirmModal.style.display !== 'none') {
                 confirmModal.style.display = 'none';
                 e.preventDefault();
+            } else if (aboutModal && aboutModal.style.display !== 'none') {
+                closeAboutDialog();
+                e.preventDefault();
             }
         }
         
-        // Enter key submits form if modal is open
-        if (e.key === 'Enter' && e.ctrlKey) {
+        // Enter key submits form if modal is open, or closes About/Confirm dialogs
+        if (e.key === 'Enter') {
             const slideModal = document.getElementById('slideModal');
-            if (slideModal && slideModal.style.display === 'block') {
+            const aboutModal = document.getElementById('aboutModal');
+            const confirmModal = document.getElementById('confirmModal');
+            
+            if (slideModal && slideModal.style.display === 'block' && e.ctrlKey) {
                 const form = document.getElementById('slideForm');
                 if (form && document.activeElement.tagName !== 'BUTTON') {
                     form.dispatchEvent(new Event('submit', { cancelable: true }));
+                    e.preventDefault();
+                }
+            } else if (aboutModal && aboutModal.style.display !== 'none') {
+                const aboutBtn = document.getElementById('aboutCloseBtn');
+                if (document.activeElement === aboutBtn || e.target === aboutModal) {
+                    closeAboutDialog();
+                    e.preventDefault();
+                }
+            } else if (confirmModal && confirmModal.style.display !== 'none') {
+                const confirmYes = document.getElementById('confirmYes');
+                if (document.activeElement === confirmYes) {
+                    confirmYes.click();
                     e.preventDefault();
                 }
             }

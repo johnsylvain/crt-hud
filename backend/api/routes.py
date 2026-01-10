@@ -16,6 +16,7 @@ from config import get_slides_config, save_slides_config, get_api_config, save_a
 from backend.api.models import Slide, APIConfig
 from backend.display.renderer import SlideRenderer
 from backend.display.video_output import create_video_output
+from backend.slides import SlideTypeRegistry
 
 
 def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, static_folder: str = None, app_instance: Any = None) -> Flask:
@@ -85,27 +86,52 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             "order": data.get("order", len(slides)),
             "conditional": data.get("conditional", False),
         }
-        # condition_type is deprecated - conditional now means "hide if no data for this slide"
         
-        # Weather-specific fields
-        if data.get("type") == "weather":
+        # Per-slide service configuration (NEW)
+        slide_type = data.get("type", "")
+        slide_type_obj = SlideTypeRegistry.get(slide_type) if slide_type else None
+        
+        # Handle service_config if present
+        if data.get("service_config") and isinstance(data.get("service_config"), dict):
+            # Only include service_config if it has values
+            service_config = {k: v for k, v in data.get("service_config", {}).items() if v}
+            if service_config:
+                new_slide["service_config"] = service_config
+        
+        # Handle api_config for custom slides
+        if slide_type == "custom" and data.get("api_config"):
+            api_config = data.get("api_config")
+            if isinstance(api_config, dict) and api_config.get("endpoint"):
+                new_slide["api_config"] = api_config
+        
+        # Extract direct fields from data (like city, temp_unit, text, image_path, font_size, etc.)
+        # These should be at root level, not in service_config
+        if slide_type == "weather":
             if data.get("city"):
                 new_slide["city"] = data.get("city")
-            new_slide["temp_unit"] = data.get("temp_unit", "C")
+            if data.get("temp_unit"):
+                new_slide["temp_unit"] = data.get("temp_unit", "C")
         
-        # Image-specific fields
-        if data.get("type") == "image":
-            if data.get("image_path"):
-                new_slide["image_path"] = data.get("image_path")
+        if slide_type == "image" and data.get("image_path"):
+            new_slide["image_path"] = data.get("image_path")
         
-        # Static text-specific fields
-        if data.get("type") == "static_text":
+        if slide_type == "static_text":
             if data.get("text"):
                 new_slide["text"] = data.get("text")
-            new_slide["font_size"] = data.get("font_size", "medium")
-            new_slide["text_align"] = data.get("text_align", "left")
-            new_slide["vertical_align"] = data.get("vertical_align", "center")
-            new_slide["text_color"] = data.get("text_color", "text")
+            if data.get("font_size"):
+                new_slide["font_size"] = data.get("font_size", "medium")
+            if data.get("text_align"):
+                new_slide["text_align"] = data.get("text_align", "left")
+            if data.get("vertical_align"):
+                new_slide["vertical_align"] = data.get("vertical_align", "center")
+            if data.get("text_color"):
+                new_slide["text_color"] = data.get("text_color", "text")
+        
+        if slide_type == "custom":
+            if data.get("layout"):
+                new_slide["layout"] = data.get("layout")
+            if data.get("widgets"):
+                new_slide["widgets"] = data.get("widgets")
         
         slides.append(new_slide)
         config["slides"] = slides
@@ -123,14 +149,15 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
         # Find and update slide
         for i, slide in enumerate(slides):
             if slide.get("id") == slide_id:
+                # Update slide with new data
                 slides[i].update(data)
                 slides[i]["id"] = slide_id  # Ensure ID doesn't change
                 
-                # Ensure refresh_duration exists (backwards compatibility)
+                # Ensure refresh_duration exists
                 if "refresh_duration" not in slides[i]:
                     slides[i]["refresh_duration"] = 5
                 
-                # Remove deprecated condition_type (backwards compatibility)
+                # Remove deprecated condition_type if present
                 if "condition_type" in slides[i]:
                     del slides[i]["condition_type"]
                 
@@ -187,15 +214,31 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
         
         return jsonify(config)
     
+    @app.route("/api/slides/types/<type_name>/schema", methods=["GET"])
+    def get_slide_type_schema(type_name: str):
+        """Get configuration schema for a slide type."""
+        slide_type = SlideTypeRegistry.get(type_name)
+        if not slide_type:
+            return jsonify({"error": f"Unknown slide type: {type_name}"}), 404
+        
+        schema = slide_type.get_config_schema()
+        return jsonify(schema)
+    
+    @app.route("/api/slides/types", methods=["GET"])
+    def get_all_slide_types():
+        """Get all available slide types with their display names."""
+        types = SlideTypeRegistry.get_all_types()
+        return jsonify({"types": types})
+    
     @app.route("/api/config", methods=["GET"])
     def get_config():
-        """Get API configuration."""
+        """Get API configuration (for weather and other global configs)."""
         config = get_api_config()
         return jsonify(config)
     
     @app.route("/api/config", methods=["PUT"])
     def update_config():
-        """Update API configuration."""
+        """Update API configuration (for weather and other global configs)."""
         data = request.get_json()
         save_api_config(data)
         return jsonify({"success": True})
@@ -559,7 +602,7 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
     
     @app.route("/api/preview/<int:slide_id>", methods=["GET"])
     def preview_slide(slide_id):
-        """Generate preview image of a slide."""
+        """Generate preview image of a slide using per-slide configuration."""
         config = get_slides_config()
         slides = config.get("slides", [])
         
@@ -573,40 +616,50 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
         if not slide:
             return jsonify({"error": "Slide not found"}), 404
         
-        # Get data from collectors if available
+        slide_type_name = slide.get("type", "")
+        slide_type = SlideTypeRegistry.get(slide_type_name)
+        
+        if not slide_type:
+            return jsonify({"error": f"Unknown slide type: {slide_type_name}"}), 400
+        
+        # Create collector using slide's service_config
+        collector = None
+        if slide.get("service_config") or slide.get("api_config"):
+            try:
+                # For custom slides, use api_config; for others, use service_config
+                config_data = {
+                    "service_config": slide.get("service_config", {}),
+                    "api_config": slide.get("api_config")
+                }
+                collector = slide_type.create_collector(config_data)
+            except Exception as e:
+                print(f"Error creating collector for slide {slide_id}: {e}")
+                collector = None
+        
+        # Get data from collector
         data = None
-        slide_type = slide.get("type", "")
+        if collector:
+            try:
+                # For weather slides, pass city to collector if it supports it
+                if slide_type_name == "weather" and hasattr(collector, "get_data_for_city"):
+                    city = slide.get("city")
+                    data = collector.get_data_for_city(city) if city else collector.get_data()
+                else:
+                    data = collector.get_data()
+            except Exception as e:
+                print(f"Error fetching data for slide {slide_id}: {e}")
+                import traceback
+                traceback.print_exc()
+                data = None
         
-        # Image and static text slides don't need data from collectors
-        if slide_type == "image" or slide_type == "static_text":
-            data = None
-        elif collectors:
-            if slide_type == "arm_rip_progress" and "arm" in collectors:
-                data = collectors["arm"].get_data()
-            elif slide_type == "pihole_summary" and "pihole" in collectors:
-                data = collectors["pihole"].get_data()
-            elif slide_type == "plex_now_playing" and "plex" in collectors:
-                data = collectors["plex"].get_data()
-                # Debug logging for Plex data
-                print(f"Preview: Plex data for slide {slide_id}: {data}")
-                if data is None:
-                    print(f"Preview: Plex collector returned None - checking if active streams exist")
-                    if hasattr(collectors["plex"], "has_active_streams"):
-                        print(f"Preview: has_active_streams() = {collectors['plex'].has_active_streams()}")
-            elif slide_type == "system_stats" and "system" in collectors:
-                data = collectors["system"].get_data()
-            elif slide_type == "weather" and "weather" in collectors:
-                # Get city from slide config, fallback to global config
-                city = slide.get("city")
-                data = collectors["weather"].get_data_for_city(city)
-        
-        # Debug: Log what we're passing to renderer
-        print(f"Preview: Rendering slide {slide_id} type={slide_type}, data is None: {data is None}")
-        if data:
-            print(f"Preview: Data keys: {list(data.keys()) if isinstance(data, dict) else 'not a dict'}")
-        
-        # Render slide (pass slide config for weather city/temp_unit)
-        image = renderer.render(slide_type, data, slide.get("title", ""), slide)
+        # Render using slide type
+        try:
+            image = slide_type.render(renderer, data, slide)
+        except Exception as e:
+            print(f"Error rendering slide {slide_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": f"Failed to render slide: {str(e)}"}), 500
         
         # Convert to PNG bytes
         img_bytes = io.BytesIO()
@@ -662,7 +715,7 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
     
     @app.route("/api/preview/render", methods=["GET"])
     def render_all_slides():
-        """Render all slides to preview directory (dev mode)."""
+        """Render all slides to preview directory (dev mode) using per-slide collectors."""
         config = get_slides_config()
         slides = config.get("slides", [])
         
@@ -671,33 +724,298 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
         
         rendered_count = 0
         for slide in slides:
-            slide_type = slide.get("type", "")
-            title = slide.get("title", "")
+            slide_type_name = slide.get("type", "")
+            slide_type = SlideTypeRegistry.get(slide_type_name)
             
-            # Get data from collectors
+            if not slide_type:
+                print(f"Skipping slide {slide.get('id')}: Unknown type {slide_type_name}")
+                continue
+            
+            # Create collector for this slide
+            collector = None
+            if slide.get("service_config") or slide.get("api_config"):
+                try:
+                    config_data = {
+                        "service_config": slide.get("service_config", {}),
+                        "api_config": slide.get("api_config")
+                    }
+                    collector = slide_type.create_collector(config_data)
+                except Exception as e:
+                    print(f"Error creating collector for slide {slide.get('id')}: {e}")
+                    collector = None
+            
+            # Get data from collector
             data = None
-            if collectors:
-                if slide_type == "arm_rip_progress" and "arm" in collectors:
-                    data = collectors["arm"].get_data()
-                elif slide_type == "pihole_summary" and "pihole" in collectors:
-                    data = collectors["pihole"].get_data()
-                elif slide_type == "plex_now_playing" and "plex" in collectors:
-                    data = collectors["plex"].get_data()
-                elif slide_type == "system_stats" and "system" in collectors:
-                    data = collectors["system"].get_data()
-                elif slide_type == "weather" and "weather" in collectors:
-                    # Get city from slide config, fallback to global config
-                    city = slide.get("city")
-                    data = collectors["weather"].get_data_for_city(city)
+            if collector:
+                try:
+                    if slide_type_name == "weather" and hasattr(collector, "get_data_for_city"):
+                        city = slide.get("city")
+                        data = collector.get_data_for_city(city) if city else collector.get_data()
+                    else:
+                        data = collector.get_data()
+                except Exception as e:
+                    print(f"Error fetching data for slide {slide.get('id')}: {e}")
+                    data = None
             
-            # Render and save (pass slide config for weather city/temp_unit)
-            image = renderer.render(slide_type, data, title, slide)
-            if output.display_frame(image):
-                rendered_count += 1
+            # Render using slide type
+            try:
+                image = slide_type.render(renderer, data, slide)
+                if output.display_frame(image):
+                    rendered_count += 1
+            except Exception as e:
+                print(f"Error rendering slide {slide.get('id')}: {e}")
+                import traceback
+                traceback.print_exc()
         
         output.cleanup()
         
         return jsonify({"success": True, "rendered": rendered_count})
+    
+    # Widget Designer API Endpoints
+    @app.route("/api/widgets/types", methods=["GET"])
+    def get_widget_types():
+        """Get available widget types and their schemas."""
+        widget_types = {
+            "text": {
+                "name": "Text",
+                "description": "Display text with data binding",
+                "properties": {
+                    "data_binding": {
+                        "path": {"type": "string", "description": "Data path (e.g., 'cpu.percent')"},
+                        "template": {"type": "string", "description": "Template string (e.g., 'CPU: {value}%')"},
+                        "format": {"type": "string", "description": "Format type (bytes, duration, percentage, etc.)", "optional": True}
+                    },
+                    "style": {
+                        "font_size": {"type": "string", "enum": ["large", "medium", "small", "tiny"], "default": "medium"},
+                        "color": {"type": "string", "enum": ["text", "text_secondary", "text_muted", "accent"], "default": "text"},
+                        "align": {"type": "string", "enum": ["left", "center", "right"], "default": "left"}
+                    },
+                    "position": {
+                        "x": {"type": "number", "description": "X position in container"},
+                        "y": {"type": "number", "description": "Y position in container"}
+                    },
+                    "width": {"type": "number", "description": "Widget width", "optional": True},
+                    "height": {"type": "number", "description": "Widget height", "optional": True}
+                }
+            },
+            "progress": {
+                "name": "Progress Bar",
+                "description": "Display progress bar with percentage",
+                "properties": {
+                    "data_binding": {
+                        "path": {"type": "string", "description": "Data path to value"},
+                        "min": {"type": "number", "default": 0},
+                        "max": {"type": "number", "default": 100}
+                    },
+                    "style": {
+                        "width": {"type": "number", "default": 30, "description": "Bar width in characters"},
+                        "show_label": {"type": "boolean", "default": True},
+                        "label_template": {"type": "string", "default": "{value:.1f}%"},
+                        "color": {"type": "string", "enum": ["text", "text_secondary", "text_muted", "accent"], "default": "text"}
+                    },
+                    "position": {
+                        "x": {"type": "number"},
+                        "y": {"type": "number"}
+                    }
+                }
+            },
+            "chart": {
+                "name": "Chart",
+                "description": "Display line or bar chart",
+                "properties": {
+                    "chart_config": {
+                        "type": {"type": "string", "enum": ["line", "bar"], "default": "line"},
+                        "data_path": {"type": "string", "description": "Data path to chart data"}
+                    },
+                    "position": {
+                        "x": {"type": "number"},
+                        "y": {"type": "number"}
+                    },
+                    "width": {"type": "number", "description": "Chart width"},
+                    "height": {"type": "number", "description": "Chart height"}
+                }
+            },
+            "conditional": {
+                "name": "Conditional Widget",
+                "description": "Display widget conditionally based on data",
+                "properties": {
+                    "condition": {
+                        "operator": {"type": "string", "enum": ["==", "!=", ">", "<", ">=", "<=", "exists", "contains", "and", "or", "not"]},
+                        "path": {"type": "string", "description": "Data path to evaluate"},
+                        "value": {"type": "any", "description": "Value to compare against", "optional": True},
+                        "conditions": {"type": "array", "description": "Sub-conditions for and/or operators", "optional": True}
+                    },
+                    "widget": {
+                        "type": {"type": "string", "description": "Widget type to render if condition is met"},
+                        "description": "Full widget configuration"
+                    },
+                    "position": {
+                        "x": {"type": "number"},
+                        "y": {"type": "number"}
+                    }
+                }
+            }
+        }
+        return jsonify({"widget_types": widget_types})
+    
+    @app.route("/api/widgets/test-api", methods=["POST"])
+    def test_api():
+        """Test custom API configuration."""
+        data = request.get_json()
+        api_config = data.get("api_config", {})
+        
+        if not api_config:
+            return jsonify({"error": "No API configuration provided"}), 400
+        
+        try:
+            from backend.collectors.generic_collector import GenericCollector
+            
+            # Create temporary collector for testing
+            collector = GenericCollector(api_config)
+            result = collector._fetch_data()
+            
+            return jsonify({
+                "success": result is not None,
+                "result": result,
+                "result_type": type(result).__name__ if result else None,
+                "result_keys": list(result.keys()) if isinstance(result, dict) else None,
+                "error": collector.get_last_error() if result is None else None
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                "success": False,
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }), 500
+    
+    @app.route("/api/widgets/validate", methods=["POST"])
+    def validate_widget():
+        """Validate widget configuration."""
+        data = request.get_json()
+        widget = data.get("widget", {})
+        
+        if not widget:
+            return jsonify({"error": "No widget configuration provided"}), 400
+        
+        errors = []
+        warnings = []
+        
+        # Check required fields
+        widget_type = widget.get("type")
+        if not widget_type:
+            errors.append("Widget type is required")
+        
+        # Validate based on widget type
+        if widget_type == "text":
+            data_binding = widget.get("data_binding", {})
+            if not data_binding.get("path") and not data_binding.get("template") and not widget.get("text"):
+                errors.append("Text widget requires data_binding.path, data_binding.template, or static text")
+        elif widget_type == "progress":
+            data_binding = widget.get("data_binding", {})
+            if not data_binding.get("path"):
+                errors.append("Progress widget requires data_binding.path")
+        elif widget_type == "chart":
+            chart_config = widget.get("chart_config", {})
+            if not chart_config.get("data_path"):
+                errors.append("Chart widget requires chart_config.data_path")
+        elif widget_type == "conditional":
+            condition = widget.get("condition", {})
+            if not condition:
+                errors.append("Conditional widget requires condition")
+            child_widget = widget.get("widget", {})
+            if not child_widget:
+                errors.append("Conditional widget requires child widget configuration")
+        
+        # Check position
+        position = widget.get("position", {})
+        if "x" not in position or "y" not in position:
+            warnings.append("Widget position (x, y) recommended for proper layout")
+        
+        return jsonify({
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings
+        })
+    
+    @app.route("/api/slides/<int:slide_id>/preview", methods=["POST"])
+    def preview_slide_with_data(slide_id):
+        """Generate preview of a slide with optional test data."""
+        data = request.get_json() or {}
+        test_data = data.get("test_data")
+        slide_override = data.get("slide")  # Optional slide config override
+        
+        config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Find slide or use override
+        slide = slide_override
+        if not slide:
+            for s in slides:
+                if s.get("id") == slide_id:
+                    slide = s
+                    break
+        
+        # If slide_id is 0 and we have override, use it (for new slides)
+        if slide_id == 0 and slide_override:
+            slide = slide_override
+        elif not slide and slide_id == 0:
+            # Create temporary slide for preview
+            slide = slide_override or {"type": "custom", "title": "Preview", "widgets": [], "layout": {"type": "mixed", "grid_areas": []}}
+        
+        if not slide:
+            return jsonify({"error": "Slide not found"}), 404
+        
+        slide_type_name = slide.get("type", "")
+        slide_type = SlideTypeRegistry.get(slide_type_name)
+        
+        if not slide_type:
+            return jsonify({"error": f"Unknown slide type: {slide_type_name}"}), 400
+        
+        # Get data - use test data if provided, otherwise fetch from collector
+        data_for_render = test_data
+        
+        if data_for_render is None:
+            # Create collector for this slide
+            collector = None
+            if slide.get("service_config") or slide.get("api_config"):
+                try:
+                    config_data = {
+                        "service_config": slide.get("service_config", {}),
+                        "api_config": slide.get("api_config")
+                    }
+                    collector = slide_type.create_collector(config_data)
+                except Exception as e:
+                    print(f"Error creating collector for preview: {e}")
+                    collector = None
+            
+            # Get data from collector
+            if collector:
+                try:
+                    if slide_type_name == "weather" and hasattr(collector, "get_data_for_city"):
+                        city = slide.get("city")
+                        data_for_render = collector.get_data_for_city(city) if city else collector.get_data()
+                    else:
+                        data_for_render = collector.get_data()
+                except Exception as e:
+                    print(f"Error fetching data for preview: {e}")
+                    data_for_render = None
+        
+        # Render using slide type
+        try:
+            image = slide_type.render(renderer, data_for_render, slide)
+            
+            # Convert to PNG bytes
+            img_bytes = io.BytesIO()
+            image.save(img_bytes, format="PNG")
+            img_bytes.seek(0)
+            
+            return send_file(img_bytes, mimetype="image/png")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": f"Failed to render slide: {str(e)}", "traceback": traceback.format_exc()}), 500
     
     return app
 
