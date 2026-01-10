@@ -73,6 +73,12 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
         if data.get("condition_type"):
             new_slide["condition_type"] = data.get("condition_type")
         
+        # Weather-specific fields
+        if data.get("type") == "weather":
+            if data.get("city"):
+                new_slide["city"] = data.get("city")
+            new_slide["temp_unit"] = data.get("temp_unit", "C")
+        
         slides.append(new_slide)
         config["slides"] = slides
         save_slides_config(config)
@@ -420,15 +426,17 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             elif slide_type == "system_stats" and "system" in collectors:
                 data = collectors["system"].get_data()
             elif slide_type == "weather" and "weather" in collectors:
-                data = collectors["weather"].get_data()
+                # Get city from slide config, fallback to global config
+                city = slide.get("city")
+                data = collectors["weather"].get_data_for_city(city)
         
         # Debug: Log what we're passing to renderer
         print(f"Preview: Rendering slide {slide_id} type={slide_type}, data is None: {data is None}")
         if data:
             print(f"Preview: Data keys: {list(data.keys()) if isinstance(data, dict) else 'not a dict'}")
         
-        # Render slide
-        image = renderer.render(slide_type, data, slide.get("title", ""))
+        # Render slide (pass slide config for weather city/temp_unit)
+        image = renderer.render(slide_type, data, slide.get("title", ""), slide)
         
         # Convert to PNG bytes
         img_bytes = io.BytesIO()
@@ -509,10 +517,12 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
                 elif slide_type == "system_stats" and "system" in collectors:
                     data = collectors["system"].get_data()
                 elif slide_type == "weather" and "weather" in collectors:
-                    data = collectors["weather"].get_data()
+                    # Get city from slide config, fallback to global config
+                    city = slide.get("city")
+                    data = collectors["weather"].get_data_for_city(city)
             
-            # Render and save
-            image = renderer.render(slide_type, data, title)
+            # Render and save (pass slide config for weather city/temp_unit)
+            image = renderer.render(slide_type, data, title, slide)
             if output.display_frame(image):
                 rendered_count += 1
         

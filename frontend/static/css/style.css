@@ -6,11 +6,30 @@
     box-sizing: border-box;
 }
 
-/* Use Chicago-like bitmap font style */
+/* Ensure all text elements have bold font weight */
+*, *::before, *::after {
+    font-weight: bold;
+}
+
+/* Add text stroke for extra boldness on classic Mac fonts */
+*, *::before, *::after {
+    -webkit-text-stroke: 0.2px #000000;
+}
+
+/* Reset text stroke for specific elements that need it */
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+    font-weight: bold;
+    -webkit-text-stroke: 0.15px #000000;
+}
+
+/* Use classic Mac fonts */
 @font-face {
     font-family: 'Chicago';
-    src: local('Courier New'), local('Monaco'), local('Menlo'), monospace;
-    font-weight: normal;
+    src: local('Chicago'), local('Geneva'), local('Monaco'), local('Courier New'), local('Menlo'), monospace;
+    font-weight: bold;
     font-style: normal;
     -webkit-font-smoothing: none;
     -moz-osx-font-smoothing: grayscale;
@@ -19,7 +38,7 @@
 
 /* Classic Mac dithered/stippled pattern background */
 body {
-    font-family: 'Chicago', 'Courier New', 'Monaco', 'Menlo', monospace;
+    font-family: 'Chicago', 'Geneva', 'Monaco', 'Courier New', 'Menlo', monospace;
     /* Dithered gray background pattern like classic Mac */
     background-color: #C0C0C0;
     background-image: 
@@ -40,59 +59,404 @@ body {
     background-size: 8px 8px;
     color: #000000; /* Pure black text */
     line-height: 1.6;
-    padding: 16px;
+    padding: 0;
+    margin: 0;
     font-size: 13px;
+    font-weight: bold;
     -webkit-font-smoothing: none;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeSpeed;
     letter-spacing: 0.3px;
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
-.container {
-    max-width: 1200px;
-    margin: 0 auto;
-    background: #FFFFFF;
+/* Macintosh Plus Menu Bar */
+.menu-bar {
+    background-color: #FFFFFF;
+    border-bottom: 1px solid #000000;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    gap: 0;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1000;
+}
+
+.apple-menu {
+    width: 20px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 4px;
+    cursor: pointer;
+    margin-right: 4px;
+}
+
+.apple-menu:hover {
+    background-color: #000000;
+}
+
+.apple-menu:hover .apple-logo {
+    fill: #FFFFFF;
+}
+
+.apple-logo {
+    width: 12px;
+    height: 14px;
+    fill: #000000;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+.menu-item {
+    padding: 2px 8px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #000000;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+    height: 18px;
+    line-height: 18px;
+    letter-spacing: 0.2px;
+}
+
+.menu-item:hover {
+    background-color: #000000;
+    color: #FFFFFF;
+}
+
+/* Desktop Container */
+.desktop-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* Desktop Icons - Classic Mac Style */
+.desktop-icon {
+    position: absolute;
+    width: 72px;
+    display: none; /* Hidden by default, shown on larger screens */
+    flex-direction: column;
+    align-items: center;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
+    z-index: 1;
+    padding: 2px;
+}
+
+.desktop-icon:hover .desktop-icon-label {
+    background-color: #FFFFFF;
+    color: #000000;
+}
+
+.desktop-icon-image {
+    width: 48px;
+    height: 48px;
+    border: 1px solid #000000;
+    background-color: #FFFFFF;
+    margin-bottom: 4px;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
+/* Folder Icon */
+.folder-icon {
+    background-color: #FFFFFF;
+    border: 1px solid #000000;
+    position: relative;
+    overflow: hidden;
+}
+
+.folder-icon::before {
+    /* Folder tab */
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    width: 20px;
+    height: 8px;
+    border: 1px solid #000000;
+    border-bottom: none;
+    background-color: #FFFFFF;
+}
+
+.folder-icon::after {
+    /* Vertical stripes on folder */
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 0;
     width: 100%;
-    overflow-x: hidden; /* Prevent horizontal scroll */
+    height: 38px;
+    background-image: 
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 2px,
+            #808080 2px,
+            #808080 3px
+        );
 }
 
-header {
+/* Disk Icon (Floppy Disk) */
+.disk-icon {
+    background-color: #FFFFFF;
+    border: 1px solid #000000;
+    position: relative;
+}
+
+.disk-icon::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 36px;
+    height: 28px;
+    border: 1px solid #000000;
+    background-color: #C0C0C0;
+}
+
+.disk-icon::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 28px;
+    height: 20px;
+    border: 1px solid #000000;
+    background-color: #000000;
+}
+
+/* Trash Icon */
+.trash-icon {
+    background-color: #FFFFFF;
+    border: 1px solid #000000;
+    position: relative;
+}
+
+.trash-icon::before {
+    /* Trash can body */
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 8px;
+    width: 32px;
+    height: 28px;
+    border: 1px solid #000000;
+    background-color: #FFFFFF;
+}
+
+.trash-icon::after {
+    /* Trash can lid */
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 6px;
+    width: 36px;
+    height: 6px;
+    border: 1px solid #000000;
+    background-color: #FFFFFF;
+    border-bottom: 2px solid #000000;
+}
+
+/* Vertical stripes for folder and trash */
+.folder-icon {
+    background-image: 
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 3px,
+            #808080 3px,
+            #808080 4px
+        );
+}
+
+.trash-icon::before {
+    background-image: 
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 2px,
+            #808080 2px,
+            #808080 3px
+        );
+}
+
+.desktop-icon-label {
+    font-size: 12px;
+    color: #FFFFFF;
     text-align: center;
-    margin-bottom: 16px;
-    padding: 12px 16px;
-    border: 2px outset #808080; /* 3D border */
-    background: #C0C0C0;
+    padding: 2px 4px;
+    max-width: 72px;
+    word-wrap: break-word;
+    line-height: 1.2;
+    letter-spacing: 0.1px;
+    text-shadow: 
+        1px 1px 0 #000000,
+        -1px -1px 0 #000000,
+        1px -1px 0 #000000,
+        -1px 1px 0 #000000,
+        0 1px 0 #000000,
+        0 -1px 0 #000000,
+        1px 0 0 #000000,
+        -1px 0 0 #000000;
+}
+
+/* Mac Window */
+.mac-window {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    margin: 8px;
+    background: #FFFFFF;
+    border: 2px outset #808080;
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.2);
+    max-width: 1200px;
+    width: calc(100% - 16px);
+    height: calc(100vh - 46px);
+    max-height: calc(100vh - 46px);
+    margin-left: auto;
+    margin-right: auto;
+    overflow: hidden;
+    min-height: 0;
+    z-index: 10;
+}
+
+/* Window Title Bar */
+.window-title-bar {
+    height: 22px;
+    background-color: #C0C0C0;
     background-image: 
         repeating-linear-gradient(
             45deg,
             transparent,
-            transparent 2px,
-            rgba(255, 255, 255, 0.2) 2px,
-            rgba(255, 255, 255, 0.2) 4px
+            transparent 1px,
+            rgba(0, 0, 0, 0.1) 1px,
+            rgba(0, 0, 0, 0.1) 2px
+        ),
+        repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 1px,
+            rgba(255, 255, 255, 0.3) 1px,
+            rgba(255, 255, 255, 0.3) 2px
         );
-    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+    background-size: 4px 4px;
+    border-bottom: 1px solid #808080;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    flex-shrink: 0;
 }
 
-header h1 {
-    font-size: 20px;
-    color: #000000;
-    font-weight: bold;
-    margin-bottom: 6px;
-    letter-spacing: 0.8px;
+.window-close-box {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #000000;
+    background: #FFFFFF;
+    margin-right: 6px;
+    flex-shrink: 0;
+    cursor: default;
 }
 
-.subtitle {
-    color: #000000;
+.window-close-box:hover {
+    background: #000000;
+}
+
+.window-title {
+    flex: 1;
     font-size: 13px;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
+    color: #000000;
+    text-align: center;
+    letter-spacing: 0.5px;
+    padding: 0 8px;
+}
+
+.window-resize-indicator {
+    width: 16px;
+    height: 14px;
+    background-image: 
+        repeating-linear-gradient(
+            -45deg,
+            #000000 0px,
+            #000000 1px,
+            transparent 1px,
+            transparent 2px
+        );
+    background-size: 4px 4px;
+    flex-shrink: 0;
+    margin-left: 4px;
+    opacity: 0.5;
+}
+
+/* Window Status Bar */
+.window-status-bar {
+    height: 18px;
+    background-color: #C0C0C0;
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 0, 0, 0.1) 1px,
+            rgba(0, 0, 0, 0.1) 2px
+        ),
+        repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 1px,
+            rgba(255, 255, 255, 0.3) 1px,
+            rgba(255, 255, 255, 0.3) 2px
+        );
+    background-size: 4px 4px;
+    border-bottom: 1px solid #808080;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    font-size: 12px;
+    color: #000000;
+    gap: 12px;
+    flex-shrink: 0;
     letter-spacing: 0.2px;
+    font-weight: bold;
+}
+
+.window-status-bar span {
+    white-space: nowrap;
+}
+
+/* Window Content Area */
+.window-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: #FFFFFF;
+    padding: 8px;
+    min-height: 0; /* Allow flexbox to shrink */
+}
+
+.container {
+    width: 100%;
+    overflow-x: hidden;
 }
 
 .main-content {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    padding: 0;
 }
 
 .main-content-grid {
@@ -292,7 +656,7 @@ header h1 {
     color: #000000;
     cursor: pointer;
     font-size: 13px;
-    font-weight: normal;
+    font-weight: bold;
     font-family: inherit;
     min-width: 80px;
     height: 26px;
@@ -490,7 +854,7 @@ header h1 {
     color: #000000;
     line-height: 1.5;
     letter-spacing: 0.1px;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .slide-badge {
@@ -615,7 +979,7 @@ header h1 {
 
 .modal-content label {
     color: #000000;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
     display: block;
     margin-bottom: 6px;
     margin-top: 8px;
@@ -728,7 +1092,7 @@ header h1 {
 .config-row label {
     color: #000000;
     font-size: 13px;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
     letter-spacing: 0.2px;
     line-height: 1.5;
 }
@@ -797,7 +1161,7 @@ header h1 {
     color: #000000;
     line-height: 1.6;
     letter-spacing: 0.2px;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .current-slide-image {
@@ -900,7 +1264,7 @@ header h1 {
     }
     
     body {
-        padding: 8px;
+        padding: 0;
         font-size: 13px;
         line-height: 1.6;
         background-size: 4px 4px; /* Smaller pattern on mobile */
@@ -909,26 +1273,58 @@ header h1 {
         position: relative;
     }
     
+    .menu-bar {
+        height: 20px;
+        font-size: 12px;
+    }
+    
+    .menu-item {
+        font-size: 12px;
+        padding: 2px 6px;
+    }
+    
+    /* Hide desktop icons on tablets or smaller to avoid overlap */
+    .desktop-icon {
+        display: none;
+    }
+    
+    .mac-window {
+        margin: 4px;
+        width: calc(100% - 8px);
+        max-height: calc(100vh - 24px);
+        height: calc(100vh - 24px);
+    }
+    
+    .window-title-bar {
+        height: 20px;
+    }
+    
+    .window-title {
+        font-size: 12px;
+    }
+    
+    .window-close-box {
+        width: 12px;
+        height: 12px;
+    }
+    
+    .window-status-bar {
+        height: 16px;
+        font-size: 11px;
+        padding: 0 6px;
+        gap: 8px;
+    }
+    
+    .window-content {
+        padding: 6px;
+    }
+    
     .container {
         max-width: 100%;
         margin: 0;
         padding: 0;
         width: 100%;
         overflow-x: hidden;
-    }
-    
-    header {
-        padding: 10px 12px;
-        margin-bottom: 12px;
-    }
-    
-    header h1 {
-        font-size: 18px;
-        margin: 4px 0;
-    }
-    
-    header .subtitle {
-        font-size: 11px;
     }
     
     .card {
@@ -1332,20 +1728,47 @@ header h1 {
 /* Very small screens (phones in portrait) */
 @media (max-width: 480px) {
     body {
-        padding: 6px;
+        padding: 0;
         font-size: 12px;
     }
     
-    header {
-        padding: 8px 10px;
+    .menu-bar {
+        height: 18px;
+        font-size: 11px;
     }
     
-    header h1 {
-        font-size: 16px;
+    .menu-item {
+        font-size: 11px;
+        padding: 2px 4px;
     }
     
-    header .subtitle {
+    .desktop-icon {
+        display: none; /* Hide desktop icons on very small screens */
+    }
+    
+    .mac-window {
+        margin: 2px;
+        width: calc(100% - 4px);
+        max-height: calc(100vh - 22px);
+        height: calc(100vh - 22px);
+    }
+    
+    .window-title-bar {
+        height: 18px;
+    }
+    
+    .window-title {
+        font-size: 11px;
+    }
+    
+    .window-status-bar {
+        height: 14px;
         font-size: 10px;
+        padding: 0 4px;
+    }
+    
+    .window-content {
+        padding: 4px;
     }
     
     .card h2 {
@@ -1417,6 +1840,30 @@ header h1 {
     .tab-btn {
         padding: 8px 16px;
         min-height: 40px;
+    }
+    
+    /* Show desktop icons but make them smaller on tablets */
+    .desktop-icon {
+        display: flex;
+        width: 64px;
+    }
+    
+    .desktop-icon-image {
+        width: 40px;
+        height: 40px;
+    }
+    
+    .desktop-icon-label {
+        font-size: 11px;
+        max-width: 64px;
+    }
+}
+
+/* Desktop sizes - show icons properly */
+@media (min-width: 1025px) {
+    .desktop-icon {
+        display: flex;
+        width: 72px;
     }
 }
 
@@ -1504,13 +1951,13 @@ header h1 {
 .debug-status {
     font-size: 13px;
     line-height: 1.8;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .debug-status p {
     margin: 6px 0;
     letter-spacing: 0.2px;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .debug-status strong {
@@ -1568,7 +2015,7 @@ header h1 {
 .debug-log-time {
     color: #000000;
     letter-spacing: 0.2px;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .debug-log-endpoint {
@@ -1576,7 +2023,7 @@ header h1 {
     padding: 4px 8px;
     border: 1px solid #000000;
     font-size: 12px;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .debug-log-method {
@@ -1584,7 +2031,7 @@ header h1 {
     padding: 4px 8px;
     border: 1px solid #000000;
     font-size: 12px;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .debug-log-status {
@@ -1592,7 +2039,7 @@ header h1 {
     padding: 4px 8px;
     border: 1px solid #000000;
     font-size: 12px;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .debug-log-error {
@@ -1608,7 +2055,7 @@ header h1 {
     font-size: 12px;
     margin-top: 12px;
     line-height: 1.6;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .debug-log-section {
@@ -1641,7 +2088,7 @@ header h1 {
     max-width: 100%;
     box-sizing: border-box;
     -webkit-overflow-scrolling: touch;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .debug-log-section code {
@@ -1657,7 +2104,7 @@ header h1 {
     max-width: 100%;
     display: block;
     overflow-x: auto;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .debug-empty, .debug-error {
@@ -1668,7 +2115,7 @@ header h1 {
     font-size: 13px;
     line-height: 1.6;
     letter-spacing: 0.2px;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }
 
 .debug-error {
@@ -1707,5 +2154,5 @@ header h1 {
     max-width: 100%;
     box-sizing: border-box;
     -webkit-overflow-scrolling: touch;
-    font-weight: 500; /* A little thicker for better readability */
+    font-weight: bold;
 }

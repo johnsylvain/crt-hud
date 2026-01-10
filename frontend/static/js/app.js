@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupCollapsibleSections();
     startCurrentSlideRefresh();
     startSlidePreviewRefresh();
+    updateWindowStatusBar();
 });
 
 // Event Listeners
@@ -36,6 +37,11 @@ function setupEventListeners() {
     // Conditional checkbox
     document.getElementById('slideConditional').addEventListener('change', (e) => {
         document.getElementById('conditionTypeGroup').style.display = e.target.checked ? 'block' : 'none';
+    });
+    
+    // Slide type change - toggle weather settings
+    document.getElementById('slideType').addEventListener('change', (e) => {
+        toggleWeatherSettings(e.target.value === 'weather');
     });
     
     // Save config button
@@ -176,6 +182,9 @@ function renderSlides() {
     
     // Refresh preview images periodically (every 5 seconds)
     refreshSlidePreviews();
+    
+    // Update window status bar
+    updateWindowStatusBar();
 }
 
 // Refresh slide preview images
@@ -289,16 +298,24 @@ function saveSlideOrder() {
     const slideItems = container.querySelectorAll('.slide-item');
     const slideIds = Array.from(slideItems).map(item => parseInt(item.dataset.id));
     
-    fetch(`${API_BASE}/slides/reorder`, {
+        fetch(`${API_BASE}/slides/reorder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ slide_ids: slideIds })
     })
-    .then(() => loadSlides())
+    .then(() => {
+        loadSlides();
+        updateWindowStatusBar();
+    })
     .catch(error => {
         console.error('Error saving slide order:', error);
         showError('Failed to save slide order');
     });
+}
+
+// Toggle weather settings visibility
+function toggleWeatherSettings(show) {
+    document.getElementById('weatherSettings').style.display = show ? 'block' : 'none';
 }
 
 // Slide Modal
@@ -309,16 +326,25 @@ function openSlideModal(slide = null) {
     if (slide) {
         document.getElementById('modalTitle').textContent = 'Edit Slide';
         document.getElementById('slideId').value = slide.id;
-        document.getElementById('slideType').value = slide.type;
+        const slideType = slide.type;
+        document.getElementById('slideType').value = slideType;
         document.getElementById('slideTitle').value = slide.title;
         document.getElementById('slideDuration').value = slide.duration;
         document.getElementById('slideConditional').checked = slide.conditional || false;
         document.getElementById('slideConditionType').value = slide.condition_type || 'arm_active';
         document.getElementById('conditionTypeGroup').style.display = (slide.conditional || false) ? 'block' : 'none';
+        
+        // Weather-specific fields
+        toggleWeatherSettings(slideType === 'weather');
+        if (slideType === 'weather') {
+            document.getElementById('slideCity').value = slide.city || '';
+            document.getElementById('slideTempUnit').value = slide.temp_unit || 'C';
+        }
     } else {
         document.getElementById('modalTitle').textContent = 'Add Slide';
         form.reset();
         document.getElementById('conditionTypeGroup').style.display = 'none';
+        toggleWeatherSettings(false);
     }
     
     modal.style.display = 'block';
@@ -327,14 +353,16 @@ function openSlideModal(slide = null) {
 function closeSlideModal() {
     document.getElementById('slideModal').style.display = 'none';
     document.getElementById('slideForm').reset();
+    toggleWeatherSettings(false);
 }
 
 // Handle Slide Submit
 async function handleSlideSubmit(e) {
     e.preventDefault();
     
+    const slideType = document.getElementById('slideType').value;
     const formData = {
-        type: document.getElementById('slideType').value,
+        type: slideType,
         title: document.getElementById('slideTitle').value,
         duration: parseInt(document.getElementById('slideDuration').value),
         conditional: document.getElementById('slideConditional').checked,
@@ -342,6 +370,16 @@ async function handleSlideSubmit(e) {
     
     if (formData.conditional) {
         formData.condition_type = document.getElementById('slideConditionType').value;
+    }
+    
+    // Weather-specific fields
+    if (slideType === 'weather') {
+        const city = document.getElementById('slideCity').value.trim();
+        const tempUnit = document.getElementById('slideTempUnit').value;
+        if (city) {
+            formData.city = city;
+        }
+        formData.temp_unit = tempUnit;
     }
     
     const slideId = document.getElementById('slideId').value;
@@ -664,6 +702,24 @@ function showError(message) {
 
 function showSuccess(message) {
     alert(`Success: ${message}`);
+}
+
+// Update Window Status Bar (Mac Plus style)
+function updateWindowStatusBar() {
+    const itemCount = slides.length;
+    const itemCountEl = document.getElementById('windowItemCount');
+    if (itemCountEl) {
+        itemCountEl.textContent = `${itemCount} ${itemCount === 1 ? 'item' : 'items'}`;
+    }
+    
+    // Simulate disk info (classic Mac style)
+    const diskInfoEl = document.getElementById('windowDiskInfo');
+    const availableEl = document.getElementById('windowAvailable');
+    if (diskInfoEl && availableEl) {
+        // These are just for aesthetics to match the classic Mac look
+        diskInfoEl.textContent = '';
+        availableEl.textContent = '';
+    }
 }
 
 // Debug Functions

@@ -1,6 +1,7 @@
 """Weather stats collector using wttr.in API."""
 
 import requests
+from urllib.parse import quote
 from typing import Optional, Dict, Any
 from .base import BaseCollector
 from config import USE_MOCKS
@@ -13,17 +14,36 @@ class WeatherCollector(BaseCollector):
         super().__init__(config, config.get("poll_interval", 600))
         self.city = config.get("city", "New York")
     
-    def _fetch_data(self) -> Optional[Dict[str, Any]]:
-        """Fetch weather data from wttr.in API."""
+    def get_data_for_city(self, city: str = None) -> Optional[Dict[str, Any]]:
+        """
+        Fetch weather data for a specific city.
+        
+        Args:
+            city: City name (overrides config city if provided)
+        
+        Returns:
+            Weather data dictionary or None
+        """
         if USE_MOCKS:
             return self._fetch_mock_data()
         
-        if not self.city:
+        target_city = city or self.city
+        if not target_city:
             return None
         
+        return self._fetch_weather_data(target_city)
+    
+    def _fetch_data(self) -> Optional[Dict[str, Any]]:
+        """Fetch weather data from wttr.in API using configured city."""
+        return self.get_data_for_city(self.city)
+    
+    def _fetch_weather_data(self, city: str) -> Optional[Dict[str, Any]]:
+        """Internal method to fetch weather data for a given city."""
         try:
             # Fetch JSON format data from wttr.in
-            url = f"https://wttr.in/{self.city}"
+            # URL encode city name to handle spaces and special characters
+            city_encoded = quote(city)
+            url = f"https://wttr.in/{city_encoded}"
             params = {
                 "format": "j1",  # JSON format
             }

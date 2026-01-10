@@ -129,7 +129,7 @@ class HomelabHUD:
         
         return True
     
-    def _get_slide_data(self, slide_type: str) -> dict:
+    def _get_slide_data(self, slide_type: str, slide: dict = None) -> dict:
         """Get data for a slide type from appropriate collector."""
         if slide_type == "arm_rip_progress" and "arm" in self.collectors:
             return self.collectors["arm"].get_data()
@@ -140,7 +140,9 @@ class HomelabHUD:
         elif slide_type == "system_stats" and "system" in self.collectors:
             return self.collectors["system"].get_data()
         elif slide_type == "weather" and "weather" in self.collectors:
-            return self.collectors["weather"].get_data()
+            # Get city from slide config, fallback to global config
+            city = (slide or {}).get("city") if slide else None
+            return self.collectors["weather"].get_data_for_city(city)
         
         return None
     
@@ -179,10 +181,10 @@ class HomelabHUD:
                     title = slide.get("title", "")
                     duration = slide.get("duration", 10)
                     
-                    data = self._get_slide_data(slide_type)
+                    data = self._get_slide_data(slide_type, slide)
                     
-                    # Render slide
-                    image = self.renderer.render(slide_type, data, title)
+                    # Render slide (pass slide config for weather city/temp_unit)
+                    image = self.renderer.render(slide_type, data, title, slide)
                     
                     # Update current slide (thread-safe)
                     # Create a copy of the image for API access (PIL images are not thread-safe)

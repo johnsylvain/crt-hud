@@ -60,14 +60,15 @@ class SlideRenderer:
         
         return lines if lines else [text]
     
-    def render(self, slide_type: str, data: Optional[Dict[str, Any]], title: str = "") -> Image.Image:
+    def render(self, slide_type: str, data: Optional[Dict[str, Any]], title: str = "", slide_config: Optional[Dict[str, Any]] = None) -> Image.Image:
         """
         Render a slide based on type and data.
         
         Args:
-            slide_type: Type of slide (pihole_summary, plex_now_playing, arm_rip_progress, system_stats)
+            slide_type: Type of slide (pihole_summary, plex_now_playing, arm_rip_progress, system_stats, weather)
             data: Data dictionary from collector
             title: Slide title
+            slide_config: Optional slide configuration (for weather: city, temp_unit)
         
         Returns:
             PIL Image object
@@ -102,7 +103,8 @@ class SlideRenderer:
         elif slide_type == "system_stats" and data:
             y = self._render_system(draw, data, y)
         elif slide_type == "weather" and data:
-            y = self._render_weather(draw, data, y)
+            temp_unit = (slide_config or {}).get("temp_unit", "C")
+            y = self._render_weather(draw, data, y, temp_unit)
         else:
             draw.text(
                 (PADDING, y),
@@ -330,7 +332,11 @@ class SlideRenderer:
         
         return y
     
-    def _render_weather(self, draw: ImageDraw.Draw, data: Dict[str, Any], y: int) -> int:
+    def _celsius_to_fahrenheit(self, temp_c: float) -> float:
+        """Convert Celsius to Fahrenheit."""
+        return (temp_c * 9/5) + 32
+    
+    def _render_weather(self, draw: ImageDraw.Draw, data: Dict[str, Any], y: int, temp_unit: str = "C") -> int:
         """Render weather data."""
         font_medium = self.theme.fonts["medium"]
         font_small = self.theme.fonts["small"]
@@ -343,8 +349,18 @@ class SlideRenderer:
         condition = current.get("condition", "Unknown")
         feelslike_c = current.get("feelslike_c", temp_c)
         
+        # Convert temperatures based on unit
+        if temp_unit.upper() == "F":
+            temp_display = self._celsius_to_fahrenheit(temp_c)
+            feelslike_display = self._celsius_to_fahrenheit(feelslike_c)
+            temp_symbol = "°F"
+        else:
+            temp_display = temp_c
+            feelslike_display = feelslike_c
+            temp_symbol = "°C"
+        
         # Temperature line
-        draw.text((PADDING, y), f"{temp_c:.0f}°C", fill=self.theme.colors["text"], font=font_medium)
+        draw.text((PADDING, y), f"{temp_display:.0f}{temp_symbol}", fill=self.theme.colors["text"], font=font_medium)
         y += LINE_HEIGHT_MEDIUM
         
         # Condition
@@ -357,7 +373,7 @@ class SlideRenderer:
         
         # Feels like
         if feelslike_c != temp_c:
-            draw.text((PADDING, y), f"FEELS: {feelslike_c:.0f}°C", 
+            draw.text((PADDING, y), f"FEELS: {feelslike_display:.0f}{temp_symbol}", 
                      fill=self.theme.colors["text_secondary"], font=font_small)
             y += LINE_HEIGHT_SMALL
         
@@ -382,14 +398,24 @@ class SlideRenderer:
                 else:
                     date_display = date_str
                 
-                maxtemp = day.get("maxtemp_c", 0)
-                mintemp = day.get("mintemp_c", 0)
+                maxtemp_c = day.get("maxtemp_c", 0)
+                mintemp_c = day.get("mintemp_c", 0)
                 day_condition = day.get("condition", "Unknown")
                 chance_rain = day.get("daily_chance_of_rain", 0)
                 
+                # Convert forecast temps based on unit
+                if temp_unit.upper() == "F":
+                    maxtemp_display = self._celsius_to_fahrenheit(maxtemp_c)
+                    mintemp_display = self._celsius_to_fahrenheit(mintemp_c)
+                    temp_symbol = "°F"
+                else:
+                    maxtemp_display = maxtemp_c
+                    mintemp_display = mintemp_c
+                    temp_symbol = "°C"
+                
                 # Format: "MM/DD: H/L°C Condition [Rain%]"
                 condition_short = day_condition[:12]  # Truncate long conditions
-                forecast_line = f"{date_display}: {maxtemp:.0f}/{mintemp:.0f}°C {condition_short}"
+                forecast_line = f"{date_display}: {maxtemp_display:.0f}/{mintemp_display:.0f}{temp_symbol} {condition_short}"
                 if chance_rain > 0:
                     forecast_line += f" [{chance_rain}%]"
                 
