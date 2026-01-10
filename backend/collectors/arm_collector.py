@@ -81,40 +81,58 @@ class ARMCollector(BaseCollector):
             results = data.get("results", {})
             print(f"ARM API: Results type = {type(results)}, length = {len(results) if isinstance(results, dict) else 'N/A'}")
             
-            # Find active jobs
+            # Find active or ripping jobs
             active_jobs = []
             for job_id, job_data in results.items():
                 job_status = job_data.get("status", "")
                 print(f"ARM API: Job {job_id} status = '{job_status}'")
-                if job_status == "active":
-                    print(f"ARM API: Found active job {job_id}: {job_data.get('title', 'Unknown')}")
+                # Include both 'active' and 'ripping' status jobs
+                if job_status in ["active", "ripping"]:
+                    print(f"ARM API: Found {job_status} job {job_id}: {job_data.get('title', 'Unknown')}")
+                    # Log available fields for debugging
+                    print(f"ARM API: Job {job_id} fields: {list(job_data.keys())}")
+                    if "poster_url" in job_data:
+                        print(f"ARM API: Job {job_id} poster_url = '{job_data.get('poster_url')}'")
+                    if "progress" in job_data:
+                        print(f"ARM API: Job {job_id} progress = '{job_data.get('progress')}'")
                     active_jobs.append(job_data)
             
-            print(f"ARM API: Found {len(active_jobs)} active job(s)")
+            print(f"ARM API: Found {len(active_jobs)} active/ripping job(s)")
             
             # If no active jobs, return None for conditional display
             if not active_jobs:
                 print("ARM API: No active jobs found, returning None for conditional display")
                 return None
             
-            # Return first active job (or merge multiple if needed)
-            job = active_jobs[0]
-            print(f"ARM API: Processing job: {job.get('job_id')} - {job.get('title', 'Unknown')}")
+            # Return all active jobs as a list (limit to 3 for display)
+            jobs_list = []
+            for job in active_jobs[:3]:  # Limit to 3 jobs for display
+                job_data = {
+                    "job_id": job.get("job_id"),
+                    "title": job.get("title", "Unknown"),
+                    "disctype": job.get("disctype", ""),
+                    "video_type": job.get("video_type", ""),
+                    "start_time": job.get("start_time", ""),
+                    "no_of_titles": job.get("no_of_titles", "0"),
+                    "year": job.get("year", ""),
+                    "pid": job.get("pid", ""),
+                    "stage": job.get("stage", ""),
+                    "label": job.get("label", ""),
+                    "mountpoint": job.get("mountpoint", ""),
+                    "poster_url": job.get("poster_url") or job.get("poster_url_auto") or job.get("poster_url_manual"),
+                    "progress": job.get("progress", "0"),
+                    "progress_round": job.get("progress_round", "0"),
+                    "status": job.get("status", ""),
+                }
+                jobs_list.append(job_data)
+                print(f"ARM API: Added job {job_data.get('job_id')} - {job_data.get('title', 'Unknown')}")
             
             result = {
-                "job_id": job.get("job_id"),
-                "title": job.get("title", "Unknown"),
-                "disctype": job.get("disctype", ""),
-                "video_type": job.get("video_type", ""),
-                "start_time": job.get("start_time", ""),
-                "no_of_titles": job.get("no_of_titles", "0"),
-                "year": job.get("year", ""),
-                "pid": job.get("pid", ""),
-                "stage": job.get("stage", ""),
-                "label": job.get("label", ""),
-                "mountpoint": job.get("mountpoint", ""),
+                "jobs": jobs_list,
+                "job_count": len(jobs_list),
+                "total_found": len(active_jobs)
             }
-            print(f"ARM API: Returning job data: {result}")
+            print(f"ARM API: Returning {len(jobs_list)} job(s) for display")
             return result
             
         except requests.exceptions.RequestException as e:
@@ -183,9 +201,10 @@ class ARMCollector(BaseCollector):
                 with open(mock_file, 'r') as f:
                     mock_data = json.load(f)
                     results = mock_data.get("results", {})
+                    mock_jobs = []
                     for job_id, job_data in results.items():
-                        if job_data.get("status") == "active":
-                            return {
+                        if job_data.get("status") in ["active", "ripping"]:
+                            mock_jobs.append({
                                 "job_id": job_data.get("job_id"),
                                 "title": job_data.get("title", "Mock Title"),
                                 "disctype": job_data.get("disctype", ""),
@@ -197,7 +216,17 @@ class ARMCollector(BaseCollector):
                                 "stage": job_data.get("stage", ""),
                                 "label": job_data.get("label", ""),
                                 "mountpoint": job_data.get("mountpoint", ""),
-                            }
+                                "poster_url": job_data.get("poster_url") or job_data.get("poster_url_auto") or job_data.get("poster_url_manual"),
+                                "progress": job_data.get("progress", "0"),
+                                "progress_round": job_data.get("progress_round", "0"),
+                                "status": job_data.get("status", ""),
+                            })
+                    if mock_jobs:
+                        return {
+                            "jobs": mock_jobs[:3],  # Limit to 3 jobs
+                            "job_count": len(mock_jobs[:3]),
+                            "total_found": len(mock_jobs)
+                        }
             except Exception as e:
                 print(f"Error loading mock data: {e}")
         

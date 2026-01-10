@@ -2422,6 +2422,14 @@ body {
     image-rendering: crisp-edges;
 }
 
+.about-logo img {
+    width: 100px;
+    height: 100px;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+}
+
 .about-title {
     font-size: 18px;
     font-weight: bold;

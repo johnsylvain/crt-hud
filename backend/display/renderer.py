@@ -3,6 +3,12 @@
 from PIL import Image, ImageDraw, ImageOps
 from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
+import io
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 try:
     import numpy as np
     HAS_NUMPY = True
@@ -205,7 +211,7 @@ class SlideRenderer:
             else:
                 y = self._render_plex(draw, data, y)
         elif slide_type == "arm_rip_progress" and data:
-            y = self._render_arm(draw, data, y)
+            y = self._render_arm(img, draw, data, y)
         elif slide_type == "system_stats" and data:
             y = self._render_system(draw, data, y)
         elif slide_type == "weather" and data:
@@ -318,48 +324,111 @@ class SlideRenderer:
         
         return y
     
-    def _render_arm(self, draw: ImageDraw.Draw, data: Dict[str, Any], y: int) -> int:
-        """Render ARM rip progress."""
-        font_medium = self.theme.fonts["medium"]
+    def _render_arm(self, img: Image.Image, draw: ImageDraw.Draw, data: Dict[str, Any], y: int) -> int:
+        """Render ARM rip progress - compact format for multiple concurrent jobs."""
+        font_tiny = self.theme.fonts["tiny"]
         font_small = self.theme.fonts["small"]
         
-        title = data.get("title", "Unknown")
-        disctype = data.get("disctype") or data.get("video_type", "")
-        start_time = data.get("start_time", "")
-        no_of_titles = data.get("no_of_titles", "0")
-        year = data.get("year", "")
+        # Handle both old format (single job) and new format (list of jobs)
+        jobs = data.get("jobs", [])
+        if not jobs:
+            # Backward compatibility: single job format
+            jobs = [data] if data.get("job_id") or data.get("title") else []
         
-        # Title (truncate if too long for larger font)
-        max_title_len = 25
-        display_title = title[:max_title_len] + "..." if len(title) > max_title_len else title
-        draw.text((PADDING, y), display_title, fill=self.theme.colors["text"], font=font_medium)
-        y += LINE_HEIGHT_MEDIUM
+        # Limit to 3 jobs for display
+        jobs = jobs[:3]
+        total_found = data.get("total_found", len(jobs))
         
-        # Type and year
-        type_year = f"{disctype}"
-        if year:
-            type_year += f" ({year})"
-        draw.text((PADDING, y), type_year, fill=self.theme.colors["text_secondary"], font=font_small)
-        y += LINE_HEIGHT_SMALL + 4
+        if not jobs:
+            draw.text((PADDING, y), "NO ACTIVE JOBS", 
+                     fill=self.theme.colors["text_muted"], font=font_small)
+            return y + LINE_HEIGHT_SMALL
         
-        # Elapsed time
-        if start_time:
-            elapsed = calculate_elapsed_time(start_time)
-            elapsed_str = format_duration(elapsed)
-            draw.text((PADDING, y), f"ELAPSED: {elapsed_str}", fill=self.theme.colors["text"], font=font_small)
-            y += LINE_HEIGHT_SMALL
+        # Calculate space per job (compact layout)
+        available_height = DISPLAY_HEIGHT - y - PADDING
+        job_spacing = 4  # Minimal spacing between jobs
+        jobs_per_slide = min(3, len(jobs))
+        space_per_job = (available_height - (job_spacing * (jobs_per_slide - 1))) // jobs_per_slide
         
-        # Number of titles
-        if no_of_titles:
-            draw.text((PADDING, y), f"TITLES: {no_of_titles}", fill=self.theme.colors["text_secondary"], font=font_small)
-            y += LINE_HEIGHT_SMALL
+        # Render each job in compact format
+        for idx, job in enumerate(jobs):
+            if y + LINE_HEIGHT_TINY > DISPLAY_HEIGHT - PADDING:
+                break  # No more space
+            
+            job_y_start = y
+            
+            # Get job data
+            title = job.get("title", "Unknown")
+            progress_str = job.get("progress", "0")
+            stage = job.get("stage", "")
+            disctype = job.get("disctype") or job.get("video_type", "")
+            job_id = job.get("job_id", "")
+            
+            # Parse progress
+            try:
+                progress = float(progress_str)
+            except (ValueError, TypeError):
+                progress = 0.0
+            
+            # Title (truncate to fit on one line with tiny font)
+            max_title_width = DISPLAY_WIDTH - (PADDING * 2)
+            max_title_len = max_title_width // 8  # Rough estimate for tiny font
+            display_title = title[:max_title_len] + "..." if len(title) > max_title_len else title
+            
+            # Draw title and type on same line (space permitting)
+            title_line = display_title
+            if disctype and len(title_line) + len(disctype) + 3 < max_title_len:
+                title_line = f"{display_title} ({disctype})"
+            
+            draw.text((PADDING, y), title_line, fill=self.theme.colors["text"], font=font_tiny)
+            y += LINE_HEIGHT_TINY
+            
+            # Progress bar and stage on same line if possible
+            if progress > 0 or stage:
+                bar_width = 20  # Compact progress bar
+                if progress > 0:
+                    bar = draw_progress_bar(bar_width, progress, 100.0)
+                    progress_text = f"{progress:.0f}% {bar}"
+                else:
+                    progress_text = "0% " + "[" + " " * bar_width + "]"
+                
+                # Stage info (truncate if needed)
+                stage_display = ""
+                if stage:
+                    max_stage_len = 15
+                    stage_display = stage[:max_stage_len] + "..." if len(stage) > max_stage_len else stage
+                
+                # Combine progress and stage if they fit
+                if stage_display and len(progress_text) + len(stage_display) + 2 < 35:
+                    status_line = f"{progress_text} | {stage_display}"
+                elif stage_display:
+                    status_line = stage_display
+                else:
+                    status_line = progress_text
+                
+                draw.text((PADDING, y), status_line, fill=self.theme.colors["text_secondary"], font=font_tiny)
+                y += LINE_HEIGHT_TINY
+            else:
+                # Just show job ID if available
+                if job_id:
+                    draw.text((PADDING, y), f"JOB: {job_id}", fill=self.theme.colors["text_muted"], font=font_tiny)
+                    y += LINE_HEIGHT_TINY
+            
+            # Add separator line between jobs (except last)
+            if idx < len(jobs) - 1:
+                # Draw a subtle separator
+                draw.line([(PADDING, y), (DISPLAY_WIDTH - PADDING, y)], 
+                         fill=self.theme.colors["text_muted"], width=1)
+                y += job_spacing
         
-        # Job ID
-        job_id = data.get("job_id", "")
-        if job_id:
-            draw.text((PADDING, y), f"JOB: {job_id}", fill=self.theme.colors["text_muted"], font=font_small)
+        # Show count if there are more jobs than displayed
+        if total_found > len(jobs):
+            more_count = total_found - len(jobs)
+            draw.text((PADDING, DISPLAY_HEIGHT - PADDING - LINE_HEIGHT_TINY), 
+                     f"+{more_count} more job(s)...", 
+                     fill=self.theme.colors["text_muted"], font=font_tiny)
         
-        return y
+        return min(y, DISPLAY_HEIGHT - PADDING)
     
     def _render_system(self, draw: ImageDraw.Draw, data: Dict[str, Any], y: int) -> int:
         """Render system stats (CPU, Memory, NAS storage)."""
