@@ -1,6 +1,6 @@
 # Homelab HUD - Raspberry Pi CRT Stats Display
 
-A Tidbyt-like application for Raspberry Pi that displays real-time stats (ARM, Pi-hole, Plex, System) on a 5-inch black and white CRT via composite output. Features a Fallout-themed minimal UI at 320x280 resolution with a web-based slide editor.
+An application for Raspberry Pi that displays real-time stats (ARM, Pi-hole, Plex, System) on a 5-inch black and white CRT via composite output. Features a minimal UI at 320x280 resolution with a web-based slide editor.
 
 ![STATUSBOARD Screenshot](assets/screenshot.png)
 
@@ -9,7 +9,7 @@ A Tidbyt-like application for Raspberry Pi that displays real-time stats (ARM, P
 - **Real-time Stats Display**: ARM rip progress, Pi-hole stats, Plex now playing, system stats (CPU, Memory, NAS storage)
 - **Conditional Display**: ARM and Plex slides only appear when active (rip in progress / streaming)
 - **Web UI**: Admin interface for creating, editing, and reordering slides
-- **Fallout Aesthetic**: Minimal, high-contrast monochrome design optimized for CRT
+- **Minimal Design**: High-contrast monochrome design optimized for CRT
 - **Cross-platform Development**: Fully testable on Mac before deploying to Raspberry Pi
 
 ## Setup
@@ -303,7 +303,7 @@ homelab-hud/
 - System collector (CPU, Memory, NAS storage - always shows)
 
 ✅ **Display Engine:**
-- Fallout-themed monochrome design (320x280)
+- Monochrome design (320x280)
 - PIL/Pillow-based rendering
 - Progress bars, ASCII graphics
 - Platform-aware output (Mac: preview, Pi: composite video)
