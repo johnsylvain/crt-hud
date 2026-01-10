@@ -1,0 +1,105 @@
+{
+  "size": 182,
+  "Device": [
+    {
+      "id": 1,
+      "name": "",
+      "platform": "",
+      "clientIdentifier": "",
+      "createdAt": 1761793813
+    },
+    {
+      "id": 10,
+      "name": "Chrome",
+      "platform": "Chrome",
+      "clientIdentifier": "7igovzg51u3355chmjfvh4zp",
+      "createdAt": 1762632257
+    },
+    {
+      "id": 20,
+      "name": "John's Mac mini",
+      "platform": "macOS",
+      "clientIdentifier": "904cbf3c-f9bf-4404-8f54-faebd308b619",
+      "createdAt": 1765331908
+    }
+  ],
+  "Account": [
+    {
+      "id": 1,
+      "key": "/accounts/1",
+      "name": "jsylva",
+      "defaultAudioLanguage": "en",
+      "autoSelectAudio": false,
+      "defaultSubtitleLanguage": "en",
+      "subtitleMode": 0,
+      "thumb": "https://plex.tv/users/a06bf2d022fd0f43/avatar?c=1767979144"
+    }
+  ],
+  "StatisticsBandwidth": [
+    {
+      "accountID": 1,
+      "deviceID": 10,
+      "timespan": 6,
+      "at": 1768015359,
+      "lan": false,
+      "bytes": 1268
+    },
+    {
+      "accountID": 1,
+      "deviceID": 20,
+      "timespan": 6,
+      "at": 1768015359,
+      "lan": false,
+      "bytes": 412
+    },
+    {
+      "accountID": 1,
+      "deviceID": 10,
+      "timespan": 6,
+      "at": 1768015360,
+      "lan": false,
+      "bytes": 2727
+    },
+    {
+      "accountID": 1,
+      "deviceID": 20,
+      "timespan": 6,
+      "at": 1768015360,
+      "lan": false,
+      "bytes": 13257
+    },
+    {
+      "accountID": 1,
+      "deviceID": 1,
+      "timespan": 6,
+      "at": 1768015360,
+      "lan": false,
+      "bytes": 4277
+    },
+    {
+      "accountID": 1,
+      "deviceID": 10,
+      "timespan": 6,
+      "at": 1768015460,
+      "lan": false,
+      "bytes": 3461
+    },
+    {
+      "accountID": 1,
+      "deviceID": 20,
+      "timespan": 6,
+      "at": 1768015460,
+      "lan": false,
+      "bytes": 412
+    },
+    {
+      "accountID": 1,
+      "deviceID": 1,
+      "timespan": 6,
+      "at": 1768015460,
+      "lan": false,
+      "bytes": 28
+    }
+  ]
+}
+

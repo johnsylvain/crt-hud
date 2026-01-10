@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""
+Homelab HUD - Main Application Entry Point
+
+Runs the display loop and Flask web server for Raspberry Pi CRT stats display.
+"""
+
+import sys
+import time
+import signal
+import threading
+import argparse
+from pathlib import Path
+
+from config import get_slides_config, get_api_config, IS_DEV, DATA_DIR
+from backend.collectors.arm_collector import ARMCollector
+from backend.collectors.pihole_collector import PiHoleCollector
+from backend.collectors.plex_collector import PlexCollector
+from backend.collectors.system_collector import SystemCollector
+from backend.display.renderer import SlideRenderer
+from backend.display.video_output import create_video_output
+from backend.api.routes import create_app
+
+
+class HomelabHUD:
+    """Main application class."""
+    
+    def __init__(self, dev_mode: bool = False, preview_window: bool = False, export_frames: bool = False, port: int = 8181):
+        self.dev_mode = dev_mode or IS_DEV
+        self.preview_window = preview_window
+        self.export_frames = export_frames
+        self.port = port
+        self.running = False
+        self.collectors = {}
+        self.renderer = SlideRenderer()
+        self.video_output = None
+        self.flask_app = None
+        self.flask_thread = None
+        # Current slide tracking (thread-safe)
+        self.current_slide_lock = threading.Lock()
+        self.current_slide = None  # Dict with slide info and rendered image
+        
+        # Load configuration
+        self.api_config = get_api_config()
+        
+        # Initialize collectors
+        self._init_collectors()
+        
+        # Initialize video output
+        self.video_output = create_video_output(preview_window=preview_window)
+        if not self.video_output.initialize():
+            print("Warning: Video output initialization failed. Continuing in preview mode.")
+            if not self.dev_mode:
+                self.video_output = create_video_output(preview_window=True)
+                self.video_output.initialize()
+        
+        # Initialize Flask app with correct template/static paths
+        template_dir = str(Path(__file__).parent / 'frontend' / 'templates')
+        static_dir = str(Path(__file__).parent / 'frontend' / 'static')
+        
+        # Create Flask app with access to this instance for current slide tracking
+        self.flask_app = create_app(
+            collectors=self.collectors,
+            template_folder=template_dir,
+            static_folder=static_dir,
+            app_instance=self  # Pass app instance for current slide access
+        )
+        
+        # Add route for index
+        @self.flask_app.route('/')
+        def index():
+            from flask import render_template
+            return render_template('index.html')
+    
+    def _init_collectors(self):
+        """Initialize data collectors."""
+        # ARM Collector
+        if self.api_config.get("arm", {}).get("enabled", True):
+            try:
+                self.collectors["arm"] = ARMCollector(self.api_config.get("arm", {}))
+                print("ARM collector initialized")
+            except Exception as e:
+                print(f"Failed to initialize ARM collector: {e}")
+        
+        # Pi-hole Collector
+        if self.api_config.get("pihole", {}).get("enabled", True):
+            try:
+                self.collectors["pihole"] = PiHoleCollector(self.api_config.get("pihole", {}))
+                print("Pi-hole collector initialized")
+            except Exception as e:
+                print(f"Failed to initialize Pi-hole collector: {e}")
+        
+        # Plex Collector
+        if self.api_config.get("plex", {}).get("enabled", True):
+            try:
+                self.collectors["plex"] = PlexCollector(self.api_config.get("plex", {}))
+                print("Plex collector initialized")
+            except Exception as e:
+                print(f"Failed to initialize Plex collector: {e}")
+        
+        # System Collector
+        if self.api_config.get("system", {}).get("enabled", True):
+            try:
+                self.collectors["system"] = SystemCollector(self.api_config.get("system", {}))
+                print("System collector initialized")
+            except Exception as e:
+                print(f"Failed to initialize System collector: {e}")
+    
+    def _should_display_slide(self, slide: dict) -> bool:
+        """Check if slide should be displayed based on conditional logic."""
+        if not slide.get("conditional", False):
+            return True
+        
+        condition_type = slide.get("condition_type", "")
+        
+        if condition_type == "arm_active":
+            return "arm" in self.collectors and self.collectors["arm"].has_active_rip()
+        elif condition_type == "plex_active":
+            return "plex" in self.collectors and self.collectors["plex"].has_active_streams()
+        
+        return True
+    
+    def _get_slide_data(self, slide_type: str) -> dict:
+        """Get data for a slide type from appropriate collector."""
+        if slide_type == "arm_rip_progress" and "arm" in self.collectors:
+            return self.collectors["arm"].get_data()
+        elif slide_type == "pihole_summary" and "pihole" in self.collectors:
+            return self.collectors["pihole"].get_data()
+        elif slide_type == "plex_now_playing" and "plex" in self.collectors:
+            return self.collectors["plex"].get_data()
+        elif slide_type == "system_stats" and "system" in self.collectors:
+            return self.collectors["system"].get_data()
+        
+        return None
+    
+    def _run_display_loop(self):
+        """Main display loop."""
+        print("Starting display loop...")
+        
+        frame_count = 0
+        
+        while self.running:
+            try:
+                # Reload configuration (allows runtime updates)
+                slides_config = get_slides_config()
+                slides = sorted(slides_config.get("slides", []), key=lambda x: x.get("order", 0))
+                
+                if not slides:
+                    print("No slides configured. Waiting...")
+                    time.sleep(5)
+                    continue
+                
+                # Cycle through slides
+                for slide in slides:
+                    if not self.running:
+                        break
+                    
+                    # Check conditional display
+                    if not self._should_display_slide(slide):
+                        print(f"Skipping slide '{slide.get('title')}' (condition not met)")
+                        # Update current slide to None when skipping
+                        with self.current_slide_lock:
+                            self.current_slide = None
+                        continue
+                    
+                    # Get slide data
+                    slide_type = slide.get("type", "")
+                    title = slide.get("title", "")
+                    duration = slide.get("duration", 10)
+                    
+                    data = self._get_slide_data(slide_type)
+                    
+                    # Render slide
+                    image = self.renderer.render(slide_type, data, title)
+                    
+                    # Update current slide (thread-safe)
+                    # Create a copy of the image for API access (PIL images are not thread-safe)
+                    # Use PIL Image.copy() method
+                    image_copy = image.copy()
+                    
+                    with self.current_slide_lock:
+                        self.current_slide = {
+                            "slide": dict(slide),  # Copy dict to avoid mutations
+                            "slide_type": slide_type,
+                            "title": title,
+                            "data": data,
+                            "image": image_copy,
+                            "timestamp": time.time()
+                        }
+                    
+                    # Display frame
+                    if self.export_frames:
+                        # Export to file
+                        export_dir = DATA_DIR / "preview"
+                        export_dir.mkdir(exist_ok=True)
+                        filename = export_dir / f"slide_{frame_count:06d}_{slide.get('id')}.png"
+                        image.save(filename)
+                        print(f"Exported frame: {filename}")
+                    else:
+                        # Display to output
+                        if not self.video_output.display_frame(image):
+                            print("Warning: Failed to display frame")
+                    
+                    frame_count += 1
+                    
+                    # Wait for slide duration (with updates to current slide timestamp)
+                    sleep_interval = 0.1
+                    elapsed = 0
+                    while elapsed < duration and self.running:
+                        time.sleep(sleep_interval)
+                        elapsed += sleep_interval
+                        
+                        # Update timestamp periodically so web UI knows slide is still active
+                        if elapsed % 1.0 < sleep_interval:  # Every ~1 second
+                            with self.current_slide_lock:
+                                if self.current_slide:
+                                    self.current_slide["timestamp"] = time.time()
+                
+            except KeyboardInterrupt:
+                break
+            except Exception as e:
+                print(f"Error in display loop: {e}")
+                import traceback
+                traceback.print_exc()
+                time.sleep(1)
+        
+        print("Display loop stopped.")
+    
+    def _run_flask_server(self):
+        """Run Flask web server in separate thread."""
+        print(f"Starting Flask server on port {self.port}...")
+        try:
+            self.flask_app.run(host='0.0.0.0', port=self.port, debug=self.dev_mode, use_reloader=False)
+        except Exception as e:
+            print(f"Flask server error: {e}")
+    
+    def start(self):
+        """Start the application."""
+        if self.running:
+            return
+        
+        self.running = True
+        
+        # Start Flask server in background thread
+        self.flask_thread = threading.Thread(target=self._run_flask_server, daemon=True)
+        self.flask_thread.start()
+        
+        # Give Flask time to start
+        time.sleep(1)
+        
+        print("Homelab HUD started!")
+        print(f"Web UI available at: http://localhost:{self.port}")
+        print(f"Mode: {'Development' if self.dev_mode else 'Production'}")
+        
+        # Run main display loop
+        try:
+            self._run_display_loop()
+        except KeyboardInterrupt:
+            print("\nShutting down...")
+        finally:
+            self.stop()
+    
+    def stop(self):
+        """Stop the application."""
+        if not self.running:
+            return
+        
+        self.running = False
+        
+        if self.video_output:
+            self.video_output.cleanup()
+        
+        print("Homelab HUD stopped.")
+
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals."""
+    print("\nReceived shutdown signal...")
+    sys.exit(0)
+
+
+def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(description='Homelab HUD - Raspberry Pi CRT Stats Display')
+    parser.add_argument('--dev-mode', action='store_true', help='Run in development mode')
+    parser.add_argument('--preview', action='store_true', help='Use pygame window preview (dev mode only)')
+    parser.add_argument('--export-frames', action='store_true', help='Export frames to files instead of displaying')
+    parser.add_argument('--verbose', action='store_true', help='Verbose logging')
+    parser.add_argument('--port', '-p', type=int, default=8181, help='Flask web server port (default: 8181)')
+    
+    args = parser.parse_args()
+    
+    # Setup signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    # Create and start application
+    app = HomelabHUD(
+        dev_mode=args.dev_mode,
+        preview_window=args.preview,
+        export_frames=args.export_frames,
+        port=args.port
+    )
+    
+    try:
+        app.start()
+    except Exception as e:
+        print(f"Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+

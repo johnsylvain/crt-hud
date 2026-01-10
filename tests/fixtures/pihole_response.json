@@ -1,0 +1,19 @@
+{
+    "domains_being_blocked": 100000,
+    "dns_queries_today": 50000,
+    "ads_blocked_today": 5000,
+    "ads_percentage_today": 10.0,
+    "unique_clients": 10,
+    "status": "enabled",
+    "top_clients": [
+        ["192.168.1.100", 1000],
+        ["192.168.1.101", 800],
+        ["192.168.1.102", 600]
+    ],
+    "top_blocked": [
+        ["ads.example.com", 500],
+        ["tracker.example.com", 300],
+        ["analytics.example.com", 200]
+    ]
+}
+

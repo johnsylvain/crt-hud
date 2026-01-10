@@ -1,0 +1,107 @@
+{
+  "size": 1,
+  "Metadata": [
+    {
+      "addedAt": 1767479844,
+      "art": "/library/metadata/3511/art/1767479845",
+      "duration": 312667,
+      "grandparentArt": "/library/metadata/3511/art/1767479845",
+      "grandparentGuid": "plex://artist/5d07bbff403c6402904a83c5",
+      "grandparentKey": "/library/metadata/3511",
+      "grandparentRatingKey": "3511",
+      "grandparentThumb": "/library/metadata/3511/thumb/1767479845",
+      "grandparentTitle": "Luther Vandross",
+      "guid": "plex://track/5d07d0d8403c6402903c508a",
+      "index": 1,
+      "key": "/library/metadata/3513",
+      "lastRatedAt": "1767480276",
+      "lastViewedAt": 1767715406,
+      "librarySectionID": "3",
+      "librarySectionKey": "/library/sections/3",
+      "librarySectionTitle": "Music",
+      "parentGuid": "plex://album/5d07c1ed403c64029088a438",
+      "parentIndex": 1,
+      "parentKey": "/library/metadata/3512",
+      "parentRatingKey": "3512",
+      "parentStudio": "Epic",
+      "parentThumb": "/library/metadata/3512/thumb/1767479846",
+      "parentTitle": "Any Love",
+      "parentYear": 1988,
+      "ratingCount": 2197,
+      "ratingKey": "3513",
+      "sessionKey": "329",
+      "thumb": "/library/metadata/3512/thumb/1767479846",
+      "title": "I Wonder",
+      "type": "track",
+      "updatedAt": 1767479846,
+      "userRating": "10.0",
+      "viewCount": 1,
+      "viewOffset": 56310,
+      "Media": [
+        {
+          "audioChannels": 2,
+          "audioCodec": "flac",
+          "bitrate": 860,
+          "container": "flac",
+          "duration": 312667,
+          "hasVoiceActivity": "0",
+          "id": "4634",
+          "Part": [
+            {
+              "container": "flac",
+              "duration": 312667,
+              "file": "/data/media/Incoming/music/Luther_Vandross/Any_Love/01 - I_Wonder.flac",
+              "id": "4634",
+              "key": "/library/parts/4634/1767479308/file.flac",
+              "size": 33624525,
+              "Stream": [
+                {
+                  "albumGain": "-0.41",
+                  "albumPeak": "0.999969",
+                  "albumRange": "8.428057",
+                  "audioChannelLayout": "stereo",
+                  "bitDepth": 16,
+                  "bitrate": 860,
+                  "channels": 2,
+                  "codec": "flac",
+                  "displayTitle": "FLAC (Stereo)",
+                  "extendedDisplayTitle": "FLAC (Stereo)",
+                  "gain": "-0.41",
+                  "id": "9784",
+                  "index": 0,
+                  "loudness": "-18.18",
+                  "lra": "5.06",
+                  "peak": "0.886444",
+                  "samplingRate": 44100,
+                  "selected": true,
+                  "streamType": 2
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "User": {
+        "id": "1",
+        "thumb": "https://plex.tv/users/a06bf2d022fd0f43/avatar?c=1767979144",
+        "title": "jsylva"
+      },
+      "Player": {
+        "address": "192.168.68.61",
+        "device": "macOS",
+        "machineIdentifier": "904cbf3c-f9bf-4404-8f54-faebd308b619",
+        "platform": "macOS",
+        "platformVersion": "22.6.0",
+        "product": "Plexamp",
+        "remotePublicAddress": "192.168.68.61",
+        "state": "playing",
+        "title": "John's Mac mini",
+        "version": "4.12.4",
+        "local": false,
+        "relayed": false,
+        "secure": true,
+        "userID": 1
+      }
+    }
+  ]
+}
