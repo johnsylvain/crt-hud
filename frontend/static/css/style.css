@@ -774,7 +774,7 @@ body {
     justify-content: space-between;
     align-items: center;
     cursor: move;
-    gap: 12px;
+    gap: 8px;
     margin-bottom: 2px;
     min-height: 44px;
 }
@@ -889,6 +889,7 @@ body {
     width: 100%;
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
+    overflow: visible; /* Allow dropdown options to extend beyond modal overlay */
 }
 
 .modal-content {
@@ -916,6 +917,7 @@ body {
     max-width: 600px;
     position: relative;
     box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
+    overflow: visible; /* Allow dropdown options to extend beyond modal */
 }
 
 .modal-content h2 {
@@ -975,6 +977,8 @@ body {
     background: #FFFFFF;
     border: 2px inset #808080;
     margin: 2px;
+    overflow: visible; /* Allow dropdown options to extend beyond form */
+    position: relative;
 }
 
 .modal-content label {
@@ -1002,6 +1006,13 @@ body {
     line-height: 12px;
     letter-spacing: 0.2px;
     box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.2);
+    position: relative;
+    z-index: 1;
+}
+
+/* Ensure select dropdown options can extend beyond modal */
+.modal-content select {
+    z-index: 1001; /* Higher z-index to ensure dropdown appears above modal content */
 }
 
 .modal-content input[type="text"]:focus,
@@ -1437,6 +1448,7 @@ body {
     .modal-content form {
         padding: 12px;
         gap: 12px;
+        overflow: visible; /* Allow dropdown options to extend beyond form on mobile */
     }
     
     .modal-content input[type="text"],
@@ -1467,6 +1479,8 @@ body {
         background-position: right 8px center;
         background-size: 12px;
         padding-right: 28px;
+        position: relative;
+        z-index: 1001; /* Higher z-index to ensure dropdown appears above modal content on mobile */
     }
     
     /* Mobile-friendly slide list */
@@ -1867,16 +1881,47 @@ body {
     }
 }
 
-/* Remove any smooth transitions for instant Mac classic feel */
-* {
-    transition: none !important;
-    animation: none !important;
+/* Micro-interactions - subtle transitions for better UX while maintaining classic Mac feel */
+.modal {
+    opacity: 0;
+    transition: opacity 0.1s ease;
 }
 
-/* Exception for image loading states */
-.slide-preview-img {
-    transition: none !important;
+.modal[style*="block"] {
+    opacity: 1;
 }
+
+.modal-content {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+}
+
+.modal[style*="block"] .modal-content {
+    transform: scale(1);
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.slide-preview-img {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.slide-preview-img[src]:not([src=""]) {
+    opacity: 1;
+}
+
+.slide-item {
+    transition: background-color 0.1s ease, border-color 0.1s ease;
+}
+
+.tab-btn {
+    transition: background-color 0.1s ease;
+}
+
+/* Keep instant feel for most interactions, but smooth subtle transitions */
 
 /* Classic Mac tabs */
 .tabs {
@@ -2155,4 +2200,165 @@ body {
     box-sizing: border-box;
     -webkit-overflow-scrolling: touch;
     font-weight: bold;
+}
+
+/* Toast Notification System */
+.toast-container {
+    position: fixed;
+    top: 30px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 400px;
+    pointer-events: none;
+}
+
+.toast {
+    background-color: #FFFFFF;
+    border: 2px outset #808080;
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: bold;
+    color: #000000;
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
+    opacity: 0;
+    transform: translateX(100%);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    letter-spacing: 0.2px;
+    line-height: 1.5;
+    max-width: 100%;
+    word-wrap: break-word;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+.toast-success {
+    background-color: #FFFFFF;
+    border-color: #000000;
+}
+
+.toast-error {
+    background-color: #FFFFFF;
+    border-color: #000000;
+    border-width: 3px;
+}
+
+.toast-info {
+    background-color: #C0C0C0;
+    border-color: #808080;
+}
+
+/* Confirm Dialog Styling */
+.confirm-dialog {
+    max-width: 500px;
+}
+
+.confirm-dialog p {
+    margin: 16px 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #000000;
+}
+
+/* Button Loading State */
+.btn.loading {
+    position: relative;
+    cursor: not-allowed;
+}
+
+.btn-spinner {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Form Validation Styles */
+.modal-content input.error,
+.modal-content select.error {
+    border-color: #000000;
+    border-width: 3px;
+    background-color: #FFFFFF;
+}
+
+.field-error {
+    color: #000000;
+    font-size: 11px;
+    margin-top: 4px;
+    font-weight: bold;
+    letter-spacing: 0.1px;
+}
+
+.modal-content label {
+    position: relative;
+}
+
+.modal-content label.required::after {
+    content: ' *';
+    color: #000000;
+}
+
+/* Drag Handle */
+.drag-handle {
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    padding: 4px 8px;
+    margin-right: 8px;
+    font-size: 14px;
+    color: #808080;
+    touch-action: none;
+    flex-shrink: 0;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.slide-item.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.slide-item.drag-over {
+    border-top: 3px solid #000000;
+}
+
+.slide-item .drag-handle:hover {
+    color: #000000;
+    background-color: #E0E0E0;
+}
+
+/* Loading States */
+.slides-loading,
+.config-loading {
+    padding: 40px;
+    text-align: center;
+    color: #000000;
+    font-size: 13px;
+    font-weight: bold;
+}
+
+.slides-error {
+    padding: 40px;
+    text-align: center;
+    color: #000000;
+    font-size: 13px;
+    font-weight: bold;
+    border: 2px inset #808080;
+    background: #FFFFFF;
+    margin: 12px;
+}
+
+.slides-error button {
+    margin-top: 12px;
 }

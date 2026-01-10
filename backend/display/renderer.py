@@ -1,7 +1,13 @@
 """Slide renderer with Fallout theme."""
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 from typing import Dict, Any, Optional
+from pathlib import Path
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
 from .themes import FalloutTheme, DISPLAY_WIDTH, DISPLAY_HEIGHT, PADDING, LINE_HEIGHT_LARGE, LINE_HEIGHT_MEDIUM, LINE_HEIGHT_SMALL, LINE_HEIGHT_TINY
 from ..utils.helpers import format_bytes, format_duration, format_time_mmss, calculate_elapsed_time, draw_progress_bar
 
@@ -11,6 +17,85 @@ class SlideRenderer:
     
     def __init__(self):
         self.theme = FalloutTheme()
+    
+    def _floyd_steinberg_dither(self, img: Image.Image) -> Image.Image:
+        """
+        Apply Floyd-Steinberg dithering to convert grayscale image to black and white.
+        This creates a dithered effect suitable for CRT displays.
+        
+        Args:
+            img: PIL Image in grayscale mode (L) or RGB
+            
+        Returns:
+            Dithered PIL Image in RGB mode (black and white pixels)
+        """
+        # Convert to grayscale if needed
+        if img.mode != "L":
+            img = img.convert("L")
+        
+        if HAS_NUMPY:
+            # Fast numpy-based dithering
+            img_array = np.array(img, dtype=np.float32)
+            height, width = img_array.shape
+            
+            # Create output array (0 = black, 255 = white)
+            output = np.zeros((height, width), dtype=np.uint8)
+            
+            # Floyd-Steinberg dithering coefficients
+            # Error distribution to neighboring pixels
+            for y in range(height):
+                for x in range(width):
+                    old_pixel = img_array[y, x]
+                    # Threshold: convert to black (0) or white (255)
+                    new_pixel = 255 if old_pixel > 127 else 0
+                    output[y, x] = new_pixel
+                    
+                    # Calculate error
+                    error = old_pixel - new_pixel
+                    
+                    # Distribute error to neighboring pixels (Floyd-Steinberg pattern)
+                    if x + 1 < width:
+                        img_array[y, x + 1] += error * 7 / 16
+                    if y + 1 < height:
+                        if x > 0:
+                            img_array[y + 1, x - 1] += error * 3 / 16
+                        img_array[y + 1, x] += error * 5 / 16
+                        if x + 1 < width:
+                            img_array[y + 1, x + 1] += error * 1 / 16
+            
+            # Convert back to PIL Image
+            dithered_img = Image.fromarray(output, mode="L")
+        else:
+            # Fallback: pure Python implementation (slower but works without numpy)
+            pixels = list(img.getdata())
+            width, height = img.size
+            img_data = [float(p) for p in pixels]
+            output_data = [0] * len(img_data)
+            
+            for y in range(height):
+                for x in range(width):
+                    idx = y * width + x
+                    old_pixel = img_data[idx]
+                    new_pixel = 255.0 if old_pixel > 127.0 else 0.0
+                    output_data[idx] = int(new_pixel)
+                    
+                    error = old_pixel - new_pixel
+                    
+                    # Distribute error
+                    if x + 1 < width:
+                        img_data[idx + 1] += error * 7 / 16
+                    if y + 1 < height:
+                        if x > 0:
+                            img_data[(y + 1) * width + (x - 1)] += error * 3 / 16
+                        img_data[(y + 1) * width + x] += error * 5 / 16
+                        if x + 1 < width:
+                            img_data[(y + 1) * width + (x + 1)] += error * 1 / 16
+            
+            dithered_img = Image.new("L", (width, height))
+            dithered_img.putdata(output_data)
+        
+        # Convert to RGB (black and white)
+        return dithered_img.convert("RGB")
     
     def _wrap_text(self, text: str, font, max_width: int, draw: ImageDraw.Draw = None) -> list:
         """Wrap text into multiple lines that fit within max_width pixels."""
@@ -65,10 +150,10 @@ class SlideRenderer:
         Render a slide based on type and data.
         
         Args:
-            slide_type: Type of slide (pihole_summary, plex_now_playing, arm_rip_progress, system_stats, weather)
+            slide_type: Type of slide (pihole_summary, plex_now_playing, arm_rip_progress, system_stats, weather, static_text, image)
             data: Data dictionary from collector
             title: Slide title
-            slide_config: Optional slide configuration (for weather: city, temp_unit)
+            slide_config: Optional slide configuration (for weather: city, temp_unit; for static_text: text, font_size, text_align, vertical_align, text_color)
         
         Returns:
             PIL Image object
@@ -76,7 +161,17 @@ class SlideRenderer:
         img = self.theme.create_image()
         draw = ImageDraw.Draw(img)
         
-        # Draw title
+        # For image slides, render full screen without title
+        if slide_type == "image":
+            self._render_image(img, slide_config)
+            return img  # Return early since we've filled the entire canvas
+        
+        # For static_text slides, handle title separately for better layout control
+        if slide_type == "static_text":
+            self._render_static_text(img, draw, slide_config or {}, title)
+            return img
+        
+        # Draw title for other slide types
         y = PADDING
         if title:
             draw.text(
@@ -429,4 +524,289 @@ class SlideRenderer:
                          fill=self.theme.colors["text_muted"], font=font_small)
         
         return y
+    
+    def _render_image(self, img: Image.Image, slide_config: Optional[Dict[str, Any]] = None) -> None:
+        """Render an image slide in black and white."""
+        if not slide_config:
+            draw = ImageDraw.Draw(img)
+            draw.text(
+                (PADDING, PADDING),
+                "NO IMAGE CONFIGURED",
+                fill=self.theme.colors["text_muted"],
+                font=self.theme.fonts["medium"]
+            )
+            return
+        
+        # Get image path from slide config
+        image_path = slide_config.get("image_path", "")
+        if not image_path:
+            draw = ImageDraw.Draw(img)
+            draw.text(
+                (PADDING, PADDING),
+                "NO IMAGE PATH",
+                fill=self.theme.colors["text_muted"],
+                font=self.theme.fonts["medium"]
+            )
+            return
+        
+        # Resolve image path (relative to data directory or absolute)
+        data_dir = Path(__file__).parent.parent.parent / "data"
+        if Path(image_path).is_absolute():
+            full_path = Path(image_path)
+        else:
+            full_path = data_dir / image_path
+        
+        # Check if image exists, try alternative extensions if needed
+        if not full_path.exists():
+            # Try common alternative extensions (in case of extension mismatch)
+            parent_dir = full_path.parent
+            filename_stem = full_path.stem
+            original_ext = full_path.suffix.lower()
+            alternative_extensions = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']
+            
+            # Remove the original extension from alternatives
+            if original_ext in alternative_extensions:
+                alternative_extensions.remove(original_ext)
+            
+            # Try to find file with alternative extensions
+            found_path = None
+            for alt_ext in alternative_extensions:
+                alt_path = parent_dir / f"{filename_stem}{alt_ext}"
+                if alt_path.exists():
+                    found_path = alt_path
+                    print(f"Image path mismatch: Found {alt_path.name} instead of {full_path.name}, using found file")
+                    break
+            
+            if found_path:
+                full_path = found_path
+            else:
+                # File not found even with alternative extensions
+                similar_files = list(parent_dir.glob(f"{filename_stem}.*")) if parent_dir.exists() else []
+                
+                draw = ImageDraw.Draw(img)
+                error_msg = f"NOT FOUND: {Path(image_path).name}"
+                if similar_files:
+                    # Found similar files - list them for debugging
+                    found_names = [f.name for f in similar_files]
+                    error_msg = f"NOT FOUND: {Path(image_path).name}\nFound: {', '.join(found_names[:2])}"
+                
+                draw.text(
+                    (PADDING, PADDING),
+                    error_msg,
+                    fill=self.theme.colors["text_muted"],
+                    font=self.theme.fonts["small"]
+                )
+                
+                # Also print to console for debugging
+                print(f"Image render error: Image not found - {full_path}")
+                if similar_files:
+                    print(f"Similar files found: {[str(f.name) for f in similar_files]}")
+                
+                return
+        
+        try:
+            # Load the image
+            loaded_img = Image.open(full_path)
+            
+            # Handle animated GIFs - extract first frame
+            if hasattr(loaded_img, 'is_animated') and loaded_img.is_animated:
+                # Seek to first frame and create a new image from it
+                loaded_img.seek(0)
+                # Create a copy to avoid issues with animated images
+                frame = Image.new("RGBA", loaded_img.size)
+                frame.paste(loaded_img)
+                loaded_img = frame
+            
+            # Convert to RGB if necessary (handles RGBA, P, GIF, etc.)
+            if loaded_img.mode != "RGB":
+                # Handle palette mode (common for GIFs) first
+                if loaded_img.mode == "P":
+                    # Check if there's transparency
+                    if "transparency" in loaded_img.info:
+                        # Convert palette mode with transparency to RGBA
+                        loaded_img = loaded_img.convert("RGBA")
+                    else:
+                        # Convert palette mode without transparency directly to RGB
+                        loaded_img = loaded_img.convert("RGB")
+                
+                # Now handle RGBA (from GIF with transparency or other sources)
+                if loaded_img.mode == "RGBA":
+                    # Create a black background for transparency to match theme
+                    rgb_img = Image.new("RGB", loaded_img.size, (0, 0, 0))
+                    rgb_img.paste(loaded_img, mask=loaded_img.split()[3])  # Use alpha channel as mask
+                    loaded_img = rgb_img
+                elif loaded_img.mode != "RGB":
+                    # Convert any other mode to RGB
+                    rgb_img = Image.new("RGB", loaded_img.size, (0, 0, 0))
+                    rgb_img.paste(loaded_img)
+                    loaded_img = rgb_img
+            
+            # Convert to grayscale first
+            if loaded_img.mode != "L":
+                gray_img = ImageOps.grayscale(loaded_img)
+            else:
+                gray_img = loaded_img
+            
+            # Crop and resize to fill entire display (before dithering for better quality)
+            img_width, img_height = gray_img.size
+            display_width = DISPLAY_WIDTH
+            display_height = DISPLAY_HEIGHT
+            
+            # Calculate scaling to cover entire display (crop strategy)
+            # Use max scale so image covers entire area, then crop
+            scale_w = display_width / img_width
+            scale_h = display_height / img_height
+            scale = max(scale_w, scale_h)  # Use max to ensure full coverage
+            
+            # Resize image to cover the display (will be larger than display in one dimension)
+            scaled_width = int(img_width * scale)
+            scaled_height = int(img_height * scale)
+            
+            # Resize image before cropping (higher quality)
+            resized_img = gray_img.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+            
+            # Calculate crop box to center crop to display dimensions
+            # Crop from the center of the scaled image
+            left = (scaled_width - display_width) // 2
+            top = (scaled_height - display_height) // 2
+            right = left + display_width
+            bottom = top + display_height
+            
+            # Crop the image to exact display dimensions
+            cropped_img = resized_img.crop((left, top, right, bottom))
+            
+            # Apply Floyd-Steinberg dithering for CRT-style display
+            try:
+                dithered_img = self._floyd_steinberg_dither(cropped_img)
+            except Exception as e:
+                # Fallback to simple threshold if dithering fails
+                print(f"Warning: Dithering failed, using simple threshold: {e}")
+                # Simple threshold conversion using PIL only
+                pixels = list(cropped_img.getdata())
+                thresholded_pixels = [255 if p > 127 else 0 for p in pixels]
+                dithered_img = Image.new("L", cropped_img.size)
+                dithered_img.putdata(thresholded_pixels)
+                dithered_img = dithered_img.convert("RGB")
+            
+            # Paste the dithered image onto the canvas (fills entire display)
+            img.paste(dithered_img, (0, 0))
+            
+        except Exception as e:
+            # If image loading fails, show error message
+            draw = ImageDraw.Draw(img)
+            error_msg = f"ERROR LOADING IMAGE: {str(e)[:40]}"
+            draw.text(
+                (PADDING, PADDING),
+                error_msg,
+                fill=self.theme.colors["text_muted"],
+                font=self.theme.fonts["small"]
+            )
+    
+    def _render_static_text(self, img: Image.Image, draw: ImageDraw.Draw, slide_config: Dict[str, Any], title: str = "") -> None:
+        """Render static text slide with styling options. Title is not displayed for static text slides."""
+        # Get text content
+        text_content = slide_config.get("text", "")
+        if not text_content:
+            draw.text(
+                (PADDING, PADDING),
+                "NO TEXT CONTENT",
+                fill=self.theme.colors["text_muted"],
+                font=self.theme.fonts["medium"]
+            )
+            return
+        
+        # Static text slides don't show title - use full canvas
+        # Get styling options
+        font_size_key = slide_config.get("font_size", "medium")
+        text_align = slide_config.get("text_align", "left")
+        vertical_align = slide_config.get("vertical_align", "center")
+        text_color_key = slide_config.get("text_color", "text")
+        
+        # Get font based on size
+        font_map = {
+            "small": self.theme.fonts["small"],
+            "medium": self.theme.fonts["medium"],
+            "large": self.theme.fonts["large"]
+        }
+        font = font_map.get(font_size_key, self.theme.fonts["medium"])
+        
+        # Get line height based on font size
+        line_height_map = {
+            "small": LINE_HEIGHT_SMALL,
+            "medium": LINE_HEIGHT_MEDIUM,
+            "large": LINE_HEIGHT_LARGE
+        }
+        line_height = line_height_map.get(font_size_key, LINE_HEIGHT_MEDIUM)
+        
+        # Get text color
+        text_color = self.theme.colors.get(text_color_key, self.theme.colors["text"])
+        
+        # Split text into lines
+        text_lines = text_content.split("\n")
+        
+        # Wrap long lines if needed
+        wrapped_lines = []
+        max_width = DISPLAY_WIDTH - (PADDING * 2)
+        for line in text_lines:
+            if line.strip():
+                wrapped = self._wrap_text(line, font, max_width, draw)
+                wrapped_lines.extend(wrapped)
+            else:
+                # Preserve empty lines
+                wrapped_lines.append("")
+        
+        # Calculate total height of text
+        total_text_height = len(wrapped_lines) * line_height
+        
+        # Calculate available space (full canvas height minus padding)
+        available_height = DISPLAY_HEIGHT - (PADDING * 2)
+        
+        # Calculate starting Y position based on vertical alignment
+        # Vertical alignment uses full canvas (no title)
+        if vertical_align == "top":
+            start_y = PADDING
+        elif vertical_align == "bottom":
+            start_y = DISPLAY_HEIGHT - total_text_height - PADDING
+        else:  # center (default)
+            # Center within full canvas
+            start_y = PADDING + max(0, (available_height - total_text_height) // 2)
+        
+        # Ensure start_y is at least PADDING
+        start_y = max(PADDING, start_y)
+        
+        # Render each line
+        current_y = start_y
+        for line in wrapped_lines:
+            if not line.strip():
+                # Empty line - just advance
+                current_y += line_height
+                continue
+            
+            # Calculate X position based on horizontal alignment
+            if hasattr(font, 'getlength'):
+                line_width = font.getlength(line)
+            elif hasattr(draw, 'textlength'):
+                line_width = draw.textlength(line, font=font)
+            else:
+                # Fallback: estimate based on character count
+                char_width = getattr(font, 'size', 18) * 0.6
+                line_width = len(line) * char_width
+            
+            if text_align == "center":
+                x = (DISPLAY_WIDTH - line_width) // 2
+            elif text_align == "right":
+                x = DISPLAY_WIDTH - line_width - PADDING
+            else:  # left (default)
+                x = PADDING
+            
+            # Ensure x is within bounds
+            x = max(PADDING, min(x, DISPLAY_WIDTH - PADDING))
+            
+            # Draw the line
+            draw.text((x, current_y), line, fill=text_color, font=font)
+            current_y += line_height
+            
+            # Stop if we've gone beyond the display height
+            if current_y > DISPLAY_HEIGHT - PADDING:
+                break
 

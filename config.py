@@ -55,8 +55,7 @@ def get_default_slides_config() -> Dict[str, Any]:
                 "duration": 15,
                 "refresh_duration": 1,
                 "order": 1,
-                "conditional": True,
-                "condition_type": "plex_active"
+                "conditional": True
             },
             {
                 "id": 3,
@@ -65,8 +64,7 @@ def get_default_slides_config() -> Dict[str, Any]:
                 "duration": 15,
                 "refresh_duration": 2,
                 "order": 2,
-                "conditional": True,
-                "condition_type": "arm_active"
+                "conditional": True
             },
             {
                 "id": 4,

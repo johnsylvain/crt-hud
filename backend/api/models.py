@@ -14,11 +14,11 @@ class Slide:
         self.refresh_duration = data.get("refresh_duration", 5)  # How often to refresh data
         self.order = data.get("order", 0)
         self.conditional = data.get("conditional", False)
-        self.condition_type = data.get("condition_type")
+        # condition_type is deprecated - conditional now means "hide if no data for this slide"
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert slide to dictionary."""
-        result = {
+        return {
             "id": self.id,
             "type": self.type,
             "title": self.title,
@@ -27,9 +27,6 @@ class Slide:
             "order": self.order,
             "conditional": self.conditional,
         }
-        if self.condition_type:
-            result["condition_type"] = self.condition_type
-        return result
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Slide":

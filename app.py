@@ -116,22 +116,41 @@ class HomelabHUD:
                 print(f"Failed to initialize Weather collector: {e}")
     
     def _should_display_slide(self, slide: dict) -> bool:
-        """Check if slide should be displayed based on conditional logic."""
+        """Check if slide should be displayed based on conditional logic.
+        
+        If conditional is True, only display if the slide has meaningful data.
+        Otherwise, always display.
+        """
         if not slide.get("conditional", False):
             return True
         
-        condition_type = slide.get("condition_type", "")
+        # For conditional slides, check if this slide has data to display
+        slide_type = slide.get("type", "")
+        data = self._get_slide_data(slide_type, slide)
         
-        if condition_type == "arm_active":
-            return "arm" in self.collectors and self.collectors["arm"].has_active_rip()
-        elif condition_type == "plex_active":
-            return "plex" in self.collectors and self.collectors["plex"].has_active_streams()
+        # Check if data exists and is meaningful based on slide type
+        if data is None:
+            return False
         
+        # For Plex, check if there are active streams
+        if slide_type == "plex_now_playing":
+            return data.get("session_count", 0) > 0
+        
+        # For ARM, if data exists it means there's an active rip
+        # (ARM collector returns None if no active jobs)
+        if slide_type == "arm_rip_progress":
+            return True  # data is not None means there's an active rip
+        
+        # For other slide types, if data exists, display it
+        # (Pi-hole, System, Weather should always have data if collector is working)
         return True
     
     def _get_slide_data(self, slide_type: str, slide: dict = None) -> dict:
         """Get data for a slide type from appropriate collector."""
-        if slide_type == "arm_rip_progress" and "arm" in self.collectors:
+        # Image and static text slides don't need data from collectors
+        if slide_type == "image" or slide_type == "static_text":
+            return None
+        elif slide_type == "arm_rip_progress" and "arm" in self.collectors:
             return self.collectors["arm"].get_data()
         elif slide_type == "pihole_summary" and "pihole" in self.collectors:
             return self.collectors["pihole"].get_data()
@@ -143,6 +162,21 @@ class HomelabHUD:
             # Get city from slide config, fallback to global config
             city = (slide or {}).get("city") if slide else None
             return self.collectors["weather"].get_data_for_city(city)
+        
+        return None
+    
+    def _get_collector_for_type(self, slide_type: str):
+        """Get the collector instance for a given slide type."""
+        if slide_type == "arm_rip_progress" and "arm" in self.collectors:
+            return self.collectors["arm"]
+        elif slide_type == "pihole_summary" and "pihole" in self.collectors:
+            return self.collectors["pihole"]
+        elif slide_type == "plex_now_playing" and "plex" in self.collectors:
+            return self.collectors["plex"]
+        elif slide_type == "system_stats" and "system" in self.collectors:
+            return self.collectors["system"]
+        elif slide_type == "weather" and "weather" in self.collectors:
+            return self.collectors["weather"]
         
         return None
     
@@ -168,9 +202,11 @@ class HomelabHUD:
                     if not self.running:
                         break
                     
-                    # Check conditional display
-                    if not self._should_display_slide(slide):
-                        print(f"Skipping slide '{slide.get('title')}' (condition not met)")
+                    # Check conditional display - skip if conditional and no data
+                    # Static text and image slides are never conditional
+                    slide_type = slide.get("type", "")
+                    if slide_type != "static_text" and slide_type != "image" and not self._should_display_slide(slide):
+                        print(f"Skipping slide '{slide.get('title')}' (conditional slide has no data)")
                         # Update current slide to None when skipping
                         with self.current_slide_lock:
                             self.current_slide = None
@@ -217,13 +253,22 @@ class HomelabHUD:
                     elapsed = 0
                     last_refresh = 0
                     
+                    print(f"Displaying slide '{title}' for {display_duration}s, refreshing every {refresh_duration}s")
+                    
                     while elapsed < display_duration and self.running:
                         time.sleep(sleep_interval)
                         elapsed += sleep_interval
                         
                         # Check if it's time to refresh data
                         if elapsed - last_refresh >= refresh_duration:
-                            # Refresh data
+                            print(f"Refreshing slide '{title}' at {elapsed:.1f}s (refresh interval: {refresh_duration}s)")
+                            
+                            # Clear cache to force fresh data fetch
+                            collector = self._get_collector_for_type(slide_type)
+                            if collector and hasattr(collector, "clear_cache"):
+                                collector.clear_cache()
+                            
+                            # Refresh data (will now fetch fresh data since cache is cleared)
                             data = self._get_slide_data(slide_type, slide)
                             
                             # Re-render slide with new data
@@ -241,16 +286,20 @@ class HomelabHUD:
                                     "timestamp": time.time()
                                 }
                             
-                            # Display updated frame
+                            # Display updated frame - this is critical for updating the display
                             if self.export_frames:
+                                # Export to file
                                 export_dir = DATA_DIR / "preview"
                                 export_dir.mkdir(exist_ok=True)
                                 filename = export_dir / f"slide_{frame_count:06d}_{slide.get('id')}.png"
                                 image.save(filename)
                                 print(f"Exported refreshed frame: {filename}")
                             else:
-                                if not self.video_output.display_frame(image):
-                                    print("Warning: Failed to display refreshed frame")
+                                # CRITICAL: Update the actual display with the new frame
+                                if self.video_output.display_frame(image):
+                                    print(f"Display updated with refreshed frame at {elapsed:.1f}s")
+                                else:
+                                    print(f"Warning: Failed to display refreshed frame at {elapsed:.1f}s")
                             
                             frame_count += 1
                             last_refresh = elapsed

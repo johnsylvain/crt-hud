@@ -4,11 +4,15 @@ from flask import Flask, jsonify, request, send_file
 from typing import Dict, Any
 import io
 import sys
+import os
+import uuid
 from pathlib import Path
+from werkzeug.utils import secure_filename
+from PIL import Image
 # Add project root to path for config import
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from config import get_slides_config, save_slides_config, get_api_config, save_api_config
+from config import get_slides_config, save_slides_config, get_api_config, save_api_config, DATA_DIR
 from backend.api.models import Slide, APIConfig
 from backend.display.renderer import SlideRenderer
 from backend.display.video_output import create_video_output
@@ -48,10 +52,13 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
         config = get_slides_config()
         slides = config.get("slides", [])
         
-        # Ensure all slides have refresh_duration (backwards compatibility)
+        # Ensure all slides have refresh_duration and clean up deprecated fields (backwards compatibility)
         for slide in slides:
             if "refresh_duration" not in slide:
                 slide["refresh_duration"] = 5
+            # Remove deprecated condition_type if it exists
+            if "condition_type" in slide:
+                del slide["condition_type"]
         
         config["slides"] = slides
         return jsonify(config)
@@ -78,15 +85,27 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             "order": data.get("order", len(slides)),
             "conditional": data.get("conditional", False),
         }
-        
-        if data.get("condition_type"):
-            new_slide["condition_type"] = data.get("condition_type")
+        # condition_type is deprecated - conditional now means "hide if no data for this slide"
         
         # Weather-specific fields
         if data.get("type") == "weather":
             if data.get("city"):
                 new_slide["city"] = data.get("city")
             new_slide["temp_unit"] = data.get("temp_unit", "C")
+        
+        # Image-specific fields
+        if data.get("type") == "image":
+            if data.get("image_path"):
+                new_slide["image_path"] = data.get("image_path")
+        
+        # Static text-specific fields
+        if data.get("type") == "static_text":
+            if data.get("text"):
+                new_slide["text"] = data.get("text")
+            new_slide["font_size"] = data.get("font_size", "medium")
+            new_slide["text_align"] = data.get("text_align", "left")
+            new_slide["vertical_align"] = data.get("vertical_align", "center")
+            new_slide["text_color"] = data.get("text_color", "text")
         
         slides.append(new_slide)
         config["slides"] = slides
@@ -110,6 +129,10 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
                 # Ensure refresh_duration exists (backwards compatibility)
                 if "refresh_duration" not in slides[i]:
                     slides[i]["refresh_duration"] = 5
+                
+                # Remove deprecated condition_type (backwards compatibility)
+                if "condition_type" in slides[i]:
+                    del slides[i]["condition_type"]
                 
                 config["slides"] = slides
                 save_slides_config(config)
@@ -404,6 +427,136 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             "has_active_rip": arm_collector.has_active_rip() if hasattr(arm_collector, "has_active_rip") else None,
         })
     
+    @app.route("/api/upload/image", methods=["POST"])
+    def upload_image():
+        """Upload an image file for use in image slides."""
+        # Check if file is in request
+        if 'file' not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+        
+        file = request.files['file']
+        
+        # Check if filename is empty
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+        
+        # Validate file extension
+        allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
+        file_ext = Path(file.filename).suffix.lower()
+        if file_ext not in allowed_extensions:
+            return jsonify({"error": f"Invalid file type. Allowed: {', '.join(allowed_extensions)}"}), 400
+        
+        # Validate file size (max 10MB)
+        file.seek(0, os.SEEK_END)
+        file_length = file.tell()
+        file.seek(0)  # Reset file pointer
+        max_size = 10 * 1024 * 1024  # 10MB
+        if file_length > max_size:
+            return jsonify({"error": f"File too large. Maximum size: {max_size / (1024*1024)}MB"}), 400
+        
+        try:
+            # Validate it's actually an image by opening with PIL
+            img = Image.open(file)
+            img.verify()  # Verify it's a valid image
+            
+            # Reset file pointer after verify (verify() consumes the file)
+            file.seek(0)
+            img = Image.open(file)  # Re-open for actual processing
+            
+            # Create images directory if it doesn't exist
+            images_dir = DATA_DIR / "images"
+            images_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate unique filename to avoid conflicts
+            base_filename = secure_filename(Path(file.filename).stem)
+            unique_id = str(uuid.uuid4())[:8]
+            new_filename = f"{base_filename}_{unique_id}{file_ext}"
+            filepath = images_dir / new_filename
+            
+            # Save file
+            # For GIFs, preserve the format
+            if img.format == 'GIF' or file_ext == '.gif':
+                # Save GIF as-is (including animation)
+                file.seek(0)
+                with open(filepath, 'wb') as f:
+                    f.write(file.read())
+            else:
+                # Convert and save other formats as PNG (better compatibility)
+                # Update filename to .png before creating filepath
+                new_filename = new_filename.rsplit('.', 1)[0] + '.png'
+                filepath = images_dir / new_filename
+                
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    # Preserve transparency
+                    img.save(filepath, 'PNG')
+                else:
+                    # Convert to RGB for standard images
+                    rgb_img = img.convert('RGB')
+                    rgb_img.save(filepath, 'PNG')
+            
+            # Return relative path from data directory
+            relative_path = f"images/{new_filename}"
+            
+            return jsonify({
+                "success": True,
+                "filename": new_filename,
+                "path": relative_path,
+                "size": file_length,
+                "format": img.format,
+                "width": img.size[0],
+                "height": img.size[1],
+                "is_animated": getattr(img, 'is_animated', False) if hasattr(img, 'is_animated') else False
+            }), 201
+            
+        except Exception as e:
+            return jsonify({"error": f"Invalid image file: {str(e)}"}), 400
+    
+    @app.route("/api/images", methods=["GET"])
+    def list_images():
+        """List all uploaded images."""
+        images_dir = DATA_DIR / "images"
+        images = []
+        
+        if images_dir.exists():
+            allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
+            for filepath in images_dir.iterdir():
+                if filepath.is_file() and filepath.suffix.lower() in allowed_extensions:
+                    try:
+                        # Get image metadata
+                        img = Image.open(filepath)
+                        images.append({
+                            "filename": filepath.name,
+                            "path": f"images/{filepath.name}",
+                            "size": filepath.stat().st_size,
+                            "format": img.format,
+                            "width": img.size[0],
+                            "height": img.size[1],
+                            "is_animated": getattr(img, 'is_animated', False) if hasattr(img, 'is_animated') else False
+                        })
+                    except Exception:
+                        # Skip invalid images
+                        continue
+        
+        return jsonify({"images": sorted(images, key=lambda x: x["filename"])})
+    
+    @app.route("/api/images/<path:filename>", methods=["GET"])
+    def serve_image(filename):
+        """Serve uploaded image files."""
+        # Security: prevent directory traversal
+        filename = os.path.basename(filename)
+        image_path = DATA_DIR / "images" / filename
+        
+        # Verify file exists and is in images directory
+        if not image_path.exists() or not str(image_path).startswith(str(DATA_DIR / "images")):
+            return jsonify({"error": "Image not found"}), 404
+        
+        # Validate it's an image file
+        allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'}
+        if image_path.suffix.lower() not in allowed_extensions:
+            return jsonify({"error": "Invalid file type"}), 400
+        
+        return send_file(str(image_path))
+    
     @app.route("/api/preview/<int:slide_id>", methods=["GET"])
     def preview_slide(slide_id):
         """Generate preview image of a slide."""
@@ -424,7 +577,10 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
         data = None
         slide_type = slide.get("type", "")
         
-        if collectors:
+        # Image and static text slides don't need data from collectors
+        if slide_type == "image" or slide_type == "static_text":
+            data = None
+        elif collectors:
             if slide_type == "arm_rip_progress" and "arm" in collectors:
                 data = collectors["arm"].get_data()
             elif slide_type == "pihole_summary" and "pihole" in collectors:
@@ -500,7 +656,6 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
                     "timestamp": current.get("timestamp"),
                     "has_data": current.get("data") is not None,
                     "conditional": slide_info.get("conditional", False),
-                    "condition_met": slide_info.get("conditional", False),
                 })
         
         return jsonify({"error": "No current slide", "current": None}), 200

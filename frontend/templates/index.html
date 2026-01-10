@@ -180,63 +180,134 @@
     </div>
 
     <!-- Add/Edit Slide Modal -->
-    <div id="slideModal" class="modal">
+    <div id="slideModal" class="modal" role="dialog" aria-labelledby="modalTitle" aria-modal="true">
         <div class="modal-content">
-            <span class="close">&times;</span>
+            <span class="close" aria-label="Close modal">&times;</span>
             <h2 id="modalTitle">Add Slide</h2>
-            <form id="slideForm">
+            <form id="slideForm" aria-label="Slide configuration form">
                 <input type="hidden" id="slideId">
                 
-                <label for="slideType">Type:</label>
-                <select id="slideType" required>
+                <label for="slideType" class="required">Type:</label>
+                <select id="slideType" required aria-required="true">
                     <option value="pihole_summary">Pi-hole Stats</option>
                     <option value="plex_now_playing">Plex Now Playing</option>
                     <option value="arm_rip_progress">ARM Rip Progress</option>
                     <option value="system_stats">System Stats</option>
                     <option value="weather">Weather</option>
+                    <option value="image">Image</option>
+                    <option value="static_text">Static Text</option>
                 </select>
                 
-                <label for="slideTitle">Title:</label>
-                <input type="text" id="slideTitle" required>
+                <label for="slideTitle" class="required">Title:</label>
+                <input type="text" id="slideTitle" required aria-required="true" aria-label="Slide title">
                 
-                <label for="slideDuration">Display Duration (seconds):</label>
-                <input type="number" id="slideDuration" min="1" max="300" value="10" required>
+                <label for="slideDuration" class="required">Display Duration (seconds):</label>
+                <input type="number" id="slideDuration" min="1" max="300" value="10" required aria-required="true" aria-label="Display duration in seconds">
                 
-                <label for="slideRefreshDuration">Refresh Duration (seconds):</label>
-                <input type="number" id="slideRefreshDuration" min="1" max="60" value="5" required>
+                <label for="slideRefreshDuration" class="required">Refresh Duration (seconds):</label>
+                <input type="number" id="slideRefreshDuration" min="1" max="60" value="5" required aria-required="true" aria-label="Refresh duration in seconds">
                 <small style="display: block; color: #666; margin-top: 4px;">
                     How often the widget should refresh its data (e.g., Plex should refresh every second)
                 </small>
                 
                 <!-- Weather-specific fields -->
                 <div id="weatherSettings" style="display: none;">
-                    <label for="slideCity">City:</label>
-                    <input type="text" id="slideCity" placeholder="e.g., New York">
+                    <label for="slideCity" class="required">City:</label>
+                    <input type="text" id="slideCity" placeholder="e.g., New York" aria-label="City name for weather">
                     
                     <label for="slideTempUnit">Temperature Unit:</label>
-                    <select id="slideTempUnit">
+                    <select id="slideTempUnit" aria-label="Temperature unit">
                         <option value="C">Celsius (°C)</option>
                         <option value="F">Fahrenheit (°F)</option>
                     </select>
                 </div>
                 
-                <label for="slideConditional">
-                    <input type="checkbox" id="slideConditional"> Conditional Display
-                </label>
+                <!-- Image-specific fields -->
+                <div id="imageSettings" style="display: none;">
+                    <input type="hidden" id="imagePath">
+                    <label for="imageUpload">Upload New Image:</label>
+                    <input type="file" id="imageUpload" accept="image/*" aria-label="Upload image file">
+                    <small style="display: block; color: #666; margin-top: 4px;">
+                        Supported formats: PNG, JPG, GIF, BMP, WEBP (max 10MB). Images will be displayed in black and white with dithering.
+                    </small>
+                    
+                    <div style="margin-top: 16px;">
+                        <label for="imageSelect">Or Select Existing Image:</label>
+                        <select id="imageSelect" aria-label="Select existing image">
+                            <option value="">-- Select an image --</option>
+                        </select>
+                    </div>
+                    
+                    <div id="imagePreview" style="margin-top: 16px; display: none;">
+                        <img id="imagePreviewImg" src="" alt="Image preview" style="max-width: 100%; max-height: 200px; border: 1px solid #ccc; border-radius: 4px;">
+                        <div id="imageInfo" style="margin-top: 8px; font-size: 12px; color: #666;"></div>
+                    </div>
+                </div>
                 
-                <div id="conditionTypeGroup" style="display: none;">
-                    <label for="slideConditionType">Condition Type:</label>
-                    <select id="slideConditionType">
-                        <option value="arm_active">ARM Active</option>
-                        <option value="plex_active">Plex Active</option>
+                <!-- Static Text-specific fields -->
+                <div id="staticTextSettings" style="display: none;">
+                    <label for="slideText" class="required">Text Content:</label>
+                    <textarea id="slideText" rows="4" placeholder="Enter text content (multi-line supported)" aria-label="Text content for static text slide"></textarea>
+                    <small style="display: block; color: #666; margin-top: 4px;">
+                        Enter the text to display. Multiple lines are supported.
+                    </small>
+                    
+                    <label for="slideFontSize">Font Size:</label>
+                    <select id="slideFontSize" aria-label="Font size">
+                        <option value="small">Small</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="large">Large</option>
+                    </select>
+                    
+                    <label for="slideTextAlign">Horizontal Alignment:</label>
+                    <select id="slideTextAlign" aria-label="Text alignment">
+                        <option value="left" selected>Left</option>
+                        <option value="center">Center</option>
+                        <option value="right">Right</option>
+                    </select>
+                    
+                    <label for="slideVerticalAlign">Vertical Alignment:</label>
+                    <select id="slideVerticalAlign" aria-label="Vertical alignment">
+                        <option value="top">Top</option>
+                        <option value="center" selected>Center</option>
+                        <option value="bottom">Bottom</option>
+                    </select>
+                    
+                    <label for="slideTextColor">Text Color:</label>
+                    <select id="slideTextColor" aria-label="Text color">
+                        <option value="text" selected>White (Primary)</option>
+                        <option value="text_secondary">Gray (Secondary)</option>
+                        <option value="text_muted">Dark Gray (Muted)</option>
                     </select>
                 </div>
                 
+                <label for="slideConditional">
+                    <input type="checkbox" id="slideConditional"> Hide if no data
+                </label>
+                <small style="display: block; color: #666; margin-top: 4px; margin-left: 24px;">
+                    If checked, this slide will only display when it has data (e.g., Plex only when streaming, ARM only when ripping)
+                </small>
+                
                 <div class="modal-actions">
-                    <button type="submit" class="btn btn-primary">Save</button>
-                    <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary" aria-label="Save slide">Save</button>
+                    <button type="button" class="btn btn-secondary" id="cancelBtn" aria-label="Cancel and close modal">Cancel</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div id="toastContainer" class="toast-container" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Confirm Dialog Modal -->
+    <div id="confirmModal" class="modal" style="display: none;">
+        <div class="modal-content confirm-dialog">
+            <h2 id="confirmTitle">Confirm</h2>
+            <p id="confirmMessage"></p>
+            <div class="modal-actions">
+                <button id="confirmYes" class="btn btn-primary">Yes</button>
+                <button id="confirmNo" class="btn btn-secondary">No</button>
+            </div>
         </div>
     </div>
 

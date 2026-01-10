@@ -79,6 +79,74 @@ enable_tvout=1
 sudo fbset -xres 320 -yres 280
 ```
 
+### Raspberry Pi Service Installation (Run on Boot)
+
+To install Homelab HUD as a systemd service that runs automatically on boot:
+
+1. **Complete the basic setup first:**
+   ```bash
+   ./setup.sh
+   ```
+
+2. **Run the installation script:**
+   ```bash
+   sudo ./install.sh
+   ```
+
+The installation script will:
+- Configure composite video output in `/boot/config.txt` (creates backup automatically)
+- Set framebuffer resolution to 320x280
+- Create a systemd service file (`homelab-hud.service`)
+- Set up framebuffer permissions and udev rules
+- Enable and start the service
+
+3. **Reboot to apply composite video configuration:**
+   ```bash
+   sudo reboot
+   ```
+
+After reboot, the service will start automatically and display will appear on your CRT monitor.
+
+**Service Management Commands:**
+
+```bash
+# Check service status
+sudo systemctl status homelab-hud
+
+# View service logs
+sudo journalctl -u homelab-hud -f
+
+# Restart service
+sudo systemctl restart homelab-hud
+
+# Stop service
+sudo systemctl stop homelab-hud
+
+# Start service
+sudo systemctl start homelab-hud
+```
+
+**Web UI Access:**
+
+Once the service is running, access the web UI at:
+- `http://localhost:8181` (on the Pi)
+- `http://<pi-ip-address>:8181` (from another device on your network)
+
+**Uninstallation:**
+
+To remove the service and optionally revert configuration changes:
+
+```bash
+sudo ./uninstall.sh
+```
+
+The uninstallation script will:
+- Stop and disable the service
+- Remove the systemd service file
+- Remove udev rules
+- Optionally restore `/boot/config.txt` from backup (with confirmation)
+- **Note:** Project files, virtual environment, and configuration data are NOT deleted
+
 ## Usage
 
 ### Quick Start (Recommended)
@@ -186,32 +254,43 @@ homelab-hud/
 
 1. **Install dependencies:**
    ```bash
-   pip install -r requirements.txt
+   ./setup.sh  # Or manually: pip install -r requirements.txt
    ```
 
-2. **Run in development mode (Mac):**
+2. **Development Mode (Mac):**
    ```bash
-   python app.py --dev-mode --preview
+   ./run.sh --dev-mode --preview
+   # Or: python app.py --dev-mode --preview
    ```
    This will:
    - Start Flask web UI at http://localhost:8181
    - Display slides in a pygame window (or save to files)
    - Use file-based preview output
 
-3. **Configure APIs via web UI:**
-   - Navigate to http://localhost:8181
-   - Configure ARM, Pi-hole, Plex API endpoints
-   - Create and reorder slides
-   - Preview slides
-
-4. **Run in production mode (Raspberry Pi):**
+3. **Production Mode (Raspberry Pi):**
+   
+   **Option A: Install as a service (recommended for production):**
    ```bash
-   python app.py
+   sudo ./install.sh
+   sudo reboot  # Required for composite video configuration
+   ```
+   Service will start automatically on boot.
+
+   **Option B: Manual run:**
+   ```bash
+   ./run.sh --prod
+   # Or: python app.py
    ```
    This will:
    - Start Flask web UI
    - Display slides on composite video output
    - Use framebuffer output for CRT display
+
+4. **Configure APIs via web UI:**
+   - Navigate to http://localhost:8181 (or http://<pi-ip>:8181)
+   - Configure ARM, Pi-hole, Plex API endpoints
+   - Create and reorder slides
+   - Preview slides
 
 ## Features Implemented
 
