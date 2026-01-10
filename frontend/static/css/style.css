@@ -639,7 +639,7 @@ body {
     padding: 0;
     background: #FFFFFF;
     border-top: none;
-    display: none;
+    display: block;
     overflow: hidden;
 }
 
@@ -2600,4 +2600,119 @@ body {
 
 .slides-error button {
     margin-top: 12px;
+}
+
+/* JSON Viewer Styles */
+.json-viewer-container {
+    margin-top: 16px;
+    border: 2px inset #808080;
+    background: #FFFFFF;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.json-viewer {
+    font-family: 'Monaco', 'Menlo', 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 16px;
+    margin: 0;
+    background: #F9F9F9;
+    color: #000000;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-x: auto;
+    overflow-y: auto;
+    max-height: 600px;
+    min-height: 200px;
+    border: none;
+    outline: none;
+    user-select: text;
+    cursor: text;
+}
+
+.json-viewer[contenteditable="false"] {
+    cursor: default;
+    background: #F9F9F9;
+}
+
+.json-viewer[contenteditable="true"] {
+    background: #FFFFFF;
+    cursor: text;
+}
+
+.json-viewer[contenteditable="true"]:focus {
+    background: #FFFFFF;
+    outline: 2px solid #0066CC;
+    outline-offset: -2px;
+}
+
+.json-viewer.json-error {
+    background: #FFEBEE;
+    color: #C62828;
+    border: 2px solid #E57373;
+}
+
+.json-viewer-controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.json-viewer-controls button {
+    font-size: 12px;
+    padding: 6px 12px;
+}
+
+/* Import Slide Selector Styles */
+.import-slide-selector {
+    border: 2px inset #808080;
+    background: #F5F5F5;
+    padding: 16px;
+    border-radius: 4px;
+    margin-top: 16px;
+}
+
+.import-slide-selector h3 {
+    margin: 0 0 12px 0;
+    font-size: 14px;
+    font-weight: bold;
+    color: #000000;
+}
+
+.import-slide-list {
+    max-height: 300px;
+    overflow-y: auto;
+    background: #FFFFFF;
+    padding: 12px;
+    border: 1px inset #808080;
+    border-radius: 4px;
+}
+
+.import-slide-item {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    margin-bottom: 8px;
+    border: 1px solid #CCCCCC;
+    border-radius: 4px;
+    background: #FAFAFA;
+    transition: background 0.2s;
+}
+
+.import-slide-item:hover {
+    background: #F0F0F0;
+}
+
+.import-slide-item label {
+    flex: 1;
+    cursor: pointer;
+    user-select: none;
+    margin: 0;
+}
+
+.import-slide-item input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
 }

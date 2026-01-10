@@ -152,10 +152,10 @@ class SlideRenderer:
         Render a slide based on type and data.
         
         Args:
-            slide_type: Type of slide (pihole_summary, plex_now_playing, arm_rip_progress, system_stats, weather, static_text, image)
+            slide_type: Type of slide (pihole_summary, plex_now_playing, arm_rip_progress, system_stats, weather, static_text, image, clock)
             data: Data dictionary from collector
             title: Slide title
-            slide_config: Optional slide configuration (for weather: city, temp_unit; for static_text: text, font_size, text_align, vertical_align, text_color)
+            slide_config: Optional slide configuration (for weather: city, temp_unit; for static_text: text, font_size, text_align, vertical_align, text_color; for clock: time_format, show_date, date_format, font_size, time_align, vertical_align)
         
         Returns:
             PIL Image object
@@ -171,6 +171,11 @@ class SlideRenderer:
         # For static_text slides, handle title separately for better layout control
         if slide_type == "static_text":
             self._render_static_text(img, draw, slide_config or {}, title)
+            return img
+        
+        # For clock slides, handle title separately for better layout control
+        if slide_type == "clock":
+            self._render_clock(img, draw, slide_config or {}, title)
             return img
         
         # Check if this is a custom slide
@@ -815,6 +820,118 @@ class SlideRenderer:
             # Stop if we've gone beyond the display height
             if current_y > DISPLAY_HEIGHT - PADDING:
                 break
+    
+    def _render_clock(self, img: Image.Image, draw: ImageDraw.Draw, slide_config: Dict[str, Any], title: str = "") -> None:
+        """Render clock slide with current time and optionally date. Title is not displayed for clock slides."""
+        from datetime import datetime
+        
+        # Get configuration
+        time_format = slide_config.get("time_format", "24h")
+        show_date = slide_config.get("show_date", True)
+        date_format = slide_config.get("date_format", "full")
+        font_size_key = slide_config.get("font_size", "large")
+        time_align = slide_config.get("time_align", "center")
+        vertical_align = slide_config.get("vertical_align", "center")
+        
+        # Get current time
+        now = datetime.now()
+        
+        # Format time based on format preference
+        if time_format == "12h":
+            time_str = now.strftime("%I:%M:%S %p")  # 12-hour with AM/PM
+        else:
+            time_str = now.strftime("%H:%M:%S")  # 24-hour format
+        
+        # Format date if enabled
+        date_str = ""
+        if show_date:
+            if date_format == "full":
+                date_str = now.strftime("%A, %B %d, %Y")  # Monday, January 1, 2024
+            elif date_format == "short":
+                date_str = now.strftime("%a, %b %d, %Y")  # Mon, Jan 1, 2024
+            elif date_format == "numeric":
+                date_str = now.strftime("%Y-%m-%d")  # 2024-01-01
+            elif date_format == "month_day":
+                date_str = now.strftime("%B %d")  # January 1
+        
+        # Get font based on size
+        font_map = {
+            "small": self.theme.fonts["small"],
+            "medium": self.theme.fonts["medium"],
+            "large": self.theme.fonts["large"]
+        }
+        time_font = font_map.get(font_size_key, self.theme.fonts["large"])
+        date_font = self.theme.fonts["medium"]  # Date always uses medium font
+        
+        # Get line heights
+        line_height_map = {
+            "small": LINE_HEIGHT_SMALL,
+            "medium": LINE_HEIGHT_MEDIUM,
+            "large": LINE_HEIGHT_LARGE
+        }
+        time_line_height = line_height_map.get(font_size_key, LINE_HEIGHT_LARGE)
+        
+        # Calculate text widths for alignment
+        if hasattr(time_font, 'getlength'):
+            time_width = time_font.getlength(time_str)
+            date_width = date_font.getlength(date_str) if date_str else 0
+        elif hasattr(draw, 'textlength'):
+            time_width = draw.textlength(time_str, font=time_font)
+            date_width = draw.textlength(date_str, font=date_font) if date_str else 0
+        else:
+            # Fallback: estimate based on character count
+            char_width_time = getattr(time_font, 'size', 24) * 0.6
+            char_width_date = getattr(date_font, 'size', 18) * 0.6
+            time_width = len(time_str) * char_width_time
+            date_width = len(date_str) * char_width_date if date_str else 0
+        
+        # Calculate total height of clock content
+        total_height = time_line_height
+        if date_str:
+            total_height += LINE_HEIGHT_MEDIUM + 8  # Date plus spacing
+        
+        # Calculate available space
+        available_height = DISPLAY_HEIGHT - (PADDING * 2)
+        
+        # Calculate starting Y position based on vertical alignment
+        if vertical_align == "top":
+            start_y = PADDING
+        elif vertical_align == "bottom":
+            start_y = DISPLAY_HEIGHT - total_height - PADDING
+        else:  # center (default)
+            start_y = PADDING + max(0, (available_height - total_height) // 2)
+        
+        # Ensure start_y is at least PADDING
+        start_y = max(PADDING, start_y)
+        
+        # Calculate X position for time based on horizontal alignment
+        if time_align == "center":
+            time_x = (DISPLAY_WIDTH - time_width) // 2
+        elif time_align == "right":
+            time_x = DISPLAY_WIDTH - time_width - PADDING
+        else:  # left (default)
+            time_x = PADDING
+        
+        # Ensure time_x is within bounds
+        time_x = max(PADDING, min(time_x, DISPLAY_WIDTH - PADDING))
+        
+        # Draw time
+        draw.text((time_x, start_y), time_str, fill=self.theme.colors["text"], font=time_font)
+        current_y = start_y + time_line_height + 8
+        
+        # Draw date if enabled (center-aligned below time, or match time alignment)
+        if date_str:
+            if time_align == "center":
+                date_x = (DISPLAY_WIDTH - date_width) // 2
+            elif time_align == "right":
+                date_x = DISPLAY_WIDTH - date_width - PADDING
+            else:  # left
+                date_x = PADDING
+            
+            # Ensure date_x is within bounds
+            date_x = max(PADDING, min(date_x, DISPLAY_WIDTH - PADDING))
+            
+            draw.text((date_x, current_y), date_str, fill=self.theme.colors["text_secondary"], font=date_font)
     
     def _render_custom(self, slide_config: Dict[str, Any], data: Optional[Dict[str, Any]], title: str = "") -> Image.Image:
         """

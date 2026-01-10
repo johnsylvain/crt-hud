@@ -169,11 +169,11 @@
                         
                         <!-- API Configuration Section (Optional) -->
                         <div class="designer-api-section collapsible-section">
-                            <h3 class="collapsible-header" data-target="apiConfigContent">
-                                <span class="collapse-icon">▶</span>
+                            <h3 class="collapsible-header expanded" data-target="apiConfigContent">
+                                <span class="collapse-icon">▼</span>
                                 <span class="collapse-text">API Configuration (Optional)</span>
                             </h3>
-                            <div id="apiConfigContent" class="collapsible-content" style="display: none;">
+                            <div id="apiConfigContent" class="collapsible-content expanded">
                                 <p class="api-optional-note">Add an API endpoint to pull live data, or leave empty to use static/test data.</p>
                                 <div class="api-config-form">
                                 <label for="apiEndpoint">Endpoint URL:</label>
@@ -219,11 +219,11 @@
             <!-- Config Tab -->
             <div id="configTab" class="tab-content" style="display: none;">
                 <section class="card collapsible-section">
-                    <h2 class="collapsible-header" data-target="configContent">
-                        <span class="collapse-icon">▶</span>
+                    <h2 class="collapsible-header expanded" data-target="configContent">
+                        <span class="collapse-icon">▼</span>
                         <span class="collapse-text">Application Configuration</span>
                     </h2>
-                    <div id="configContent" class="collapsible-content">
+                    <div id="configContent" class="collapsible-content expanded">
                         <p style="color: #666; margin-bottom: 16px; font-size: 13px;">Configure application-wide service settings (ARM, Pi-hole, Plex, System). These are used as defaults for slides that don't have their own API configuration.</p>
                         <div id="configForm">
                             <!-- Configuration form will be loaded here -->
@@ -233,16 +233,49 @@
                         </div>
                     </div>
                 </section>
+                
+                <section class="card collapsible-section">
+                    <h2 class="collapsible-header expanded" data-target="jsonViewerContent">
+                        <span class="collapse-icon">▼</span>
+                        <span class="collapse-text">JSON Configuration Viewer</span>
+                    </h2>
+                    <div id="jsonViewerContent" class="collapsible-content expanded">
+                        <p style="color: #666; margin-bottom: 16px; font-size: 13px;">View, edit, export, and import the complete slide configuration as JSON. You can also import individual slides from other configuration files.</p>
+                        
+                        <div class="json-viewer-controls" style="margin-bottom: 16px;">
+                            <button id="refreshJsonBtn" class="btn btn-secondary">Refresh View</button>
+                            <button id="editJsonBtn" class="btn btn-secondary">Edit JSON</button>
+                            <button id="exportJsonBtn" class="btn btn-primary">Export JSON</button>
+                            <button id="importJsonBtn" class="btn btn-primary">Import JSON</button>
+                            <input type="file" id="importJsonFile" accept=".json" style="display: none;">
+                            <button id="saveJsonBtn" class="btn btn-primary" style="display: none;">Save Changes</button>
+                            <button id="cancelJsonEditBtn" class="btn btn-secondary" style="display: none;">Cancel</button>
+                        </div>
+                        
+                        <div id="jsonViewerContainer" class="json-viewer-container">
+                            <pre id="jsonViewer" class="json-viewer" contenteditable="false" aria-label="JSON configuration viewer"></pre>
+                        </div>
+                        
+                        <div id="importSlideSelector" class="import-slide-selector" style="display: none; margin-top: 16px;">
+                            <h3 style="margin-bottom: 12px; font-size: 14px;">Select slides to import:</h3>
+                            <div id="importSlideList" class="import-slide-list"></div>
+                            <div class="controls" style="margin-top: 12px;">
+                                <button id="importSelectedSlidesBtn" class="btn btn-primary">Import Selected Slides</button>
+                                <button id="cancelImportBtn" class="btn btn-secondary">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
             </div>
 
             <!-- Debug Tab -->
             <div id="debugTab" class="tab-content" style="display: none;">
                 <section class="card collapsible-section">
-                    <h2 class="collapsible-header" data-target="plexDebugContent">
-                        <span class="collapse-icon">▶</span>
+                    <h2 class="collapsible-header expanded" data-target="plexDebugContent">
+                        <span class="collapse-icon">▼</span>
                         <span class="collapse-text">Plex API Debug</span>
                     </h2>
-                    <div id="plexDebugContent" class="collapsible-content">
+                    <div id="plexDebugContent" class="collapsible-content expanded">
                         <div class="controls">
                             <button id="refreshDebugBtn" class="btn btn-primary">Refresh Logs</button>
                             <button id="testPlexBtn" class="btn btn-secondary">Test Connection</button>
@@ -269,11 +302,11 @@
                 
                 <!-- ARM Debug Section -->
                 <section class="card collapsible-section">
-                    <h2 class="collapsible-header" data-target="armDebugContent">
-                        <span class="collapse-icon">▶</span>
+                    <h2 class="collapsible-header expanded" data-target="armDebugContent">
+                        <span class="collapse-icon">▼</span>
                         <span class="collapse-text">ARM API Debug</span>
                     </h2>
-                    <div id="armDebugContent" class="collapsible-content">
+                    <div id="armDebugContent" class="collapsible-content expanded">
                         <div class="controls">
                             <button id="refreshArmDebugBtn" class="btn btn-primary">Refresh Logs</button>
                             <button id="testArmBtn" class="btn btn-secondary">Test Connection</button>
@@ -298,6 +331,31 @@
                         </div>
                     </div>
                 </section>
+                
+                <!-- System Debug Section -->
+                <section class="card collapsible-section">
+                    <h2 class="collapsible-header expanded" data-target="systemDebugContent">
+                        <span class="collapse-icon">▼</span>
+                        <span class="collapse-text">System Stats Debug</span>
+                    </h2>
+                    <div id="systemDebugContent" class="collapsible-content expanded">
+                        <div class="controls">
+                            <button id="refreshSystemDebugBtn" class="btn btn-primary">Refresh Logs</button>
+                            <button id="testSystemBtn" class="btn btn-secondary">Test Collection</button>
+                            <button id="clearSystemDebugBtn" class="btn btn-secondary">Clear Logs</button>
+                        </div>
+                        <div id="systemDebugInfo" class="debug-info">
+                            <div class="debug-status">
+                                <p><strong>System Slides:</strong> <span id="systemDebugSlideCount">0</span></p>
+                                <p><strong>Log Count:</strong> <span id="systemDebugLogCount">0</span></p>
+                                <p><strong>Last Collection:</strong> <span id="systemDebugLastCollection">-</span></p>
+                            </div>
+                        </div>
+                        <div id="systemDebugLogs" class="debug-logs">
+                            <!-- System debug logs will be displayed here -->
+                        </div>
+                    </div>
+                </section>
             </div>
             </div>
         </div>
@@ -311,20 +369,23 @@
             <h2 id="modalTitle">Add Slide</h2>
             <form id="slideForm" aria-label="Slide configuration form">
                 <input type="hidden" id="slideId">
+                <input type="hidden" id="slideType" required>
                 
-                <label for="slideType" class="required">Type:</label>
-                <select id="slideType" required aria-required="true">
-                    <option value="pihole_summary">Pi-hole Stats</option>
-                    <option value="plex_now_playing">Plex Now Playing</option>
-                    <option value="arm_rip_progress">ARM Rip Progress</option>
-                    <option value="system_stats">System Stats</option>
-                    <option value="weather">Weather</option>
-                    <option value="image">Image</option>
-                    <option value="static_text">Static Text</option>
-                    <option value="custom">Custom Widget</option>
-                </select>
+                <!-- Slide Type Selection (shown first) -->
+                <div id="slideTypeSelection" class="slide-type-selection">
+                    <label class="required">Select Slide Type:</label>
+                    <div class="slide-type-filter">
+                        <input type="text" id="slideTypeFilter" placeholder="Search slide types..." aria-label="Filter slide types">
+                    </div>
+                    <div id="slideTypeList" class="slide-type-list" role="listbox" aria-label="Available slide types">
+                        <!-- Slide type cards will be dynamically loaded here -->
+                    </div>
+                    <small id="slideTypeError" class="error-message" style="display: none; color: #d00; margin-top: 8px;">Please select a slide type</small>
+                </div>
                 
-                <label for="slideTitle" class="required">Title:</label>
+                <!-- Configuration Fields (shown after type selection) -->
+                <div id="slideConfigFields" style="display: none;">
+                    <label for="slideTitle" class="required">Title:</label>
                 <input type="text" id="slideTitle" required aria-required="true" aria-label="Slide title">
                 
                 <label for="slideDuration" class="required">Display Duration (seconds):</label>
@@ -360,25 +421,26 @@
                     <!-- Static text fields now rendered dynamically from schema -->
                 </div>
                 
-                <!-- Service Configuration Section (Dynamic based on slide type) -->
-                <div id="slideServiceConfig" class="slide-service-config" style="margin-top: 20px; border-top: 1px solid #ddd; padding-top: 16px;">
-                    <!-- Service configuration fields will be loaded here dynamically -->
+                    <!-- Service Configuration Section (Dynamic based on slide type) -->
+                    <div id="slideServiceConfig" class="slide-service-config" style="margin-top: 20px; border-top: 1px solid #ddd; padding-top: 16px;">
+                        <!-- Service configuration fields will be loaded here dynamically -->
+                    </div>
+                    
+                    <label for="slideConditional" id="slideConditionalContainer" style="display: none;">
+                        <input type="checkbox" id="slideConditional"> Hide if no data
+                    </label>
+                    <small id="slideConditionalHelp" style="display: none; color: #666; margin-top: 4px; margin-left: 24px;">
+                        If checked, this slide will only display when it has data (e.g., Plex only when streaming, ARM only when ripping)
+                    </small>
                 </div>
-                
-                <label for="slideConditional" id="slideConditionalContainer" style="display: none;">
-                    <input type="checkbox" id="slideConditional"> Hide if no data
-                </label>
-                <small id="slideConditionalHelp" style="display: none; color: #666; margin-top: 4px; margin-left: 24px;">
-                    If checked, this slide will only display when it has data (e.g., Plex only when streaming, ARM only when ripping)
-                </small>
                 
                 <!-- API Configuration Section (Optional - for Custom slides) -->
                 <div class="slide-api-section collapsible-section" style="margin-top: 20px; border-top: 1px solid #ddd; padding-top: 16px;">
-                    <h3 class="collapsible-header" id="slideApiConfigHeader" style="cursor: pointer; user-select: none; margin-bottom: 8px;">
-                        <span class="collapse-icon">▶</span>
+                    <h3 class="collapsible-header expanded" id="slideApiConfigHeader" style="cursor: pointer; user-select: none; margin-bottom: 8px;">
+                        <span class="collapse-icon">▼</span>
                         <span class="collapse-text">API Configuration (Optional)</span>
                     </h3>
-                    <div id="slideApiConfigContent" class="collapsible-content" style="display: none;">
+                    <div id="slideApiConfigContent" class="collapsible-content expanded">
                         <p class="api-optional-note" style="color: #666; margin-bottom: 16px; font-size: 13px;">Configure a custom API endpoint for this slide. If left empty, the slide will use the application-wide configuration or default data sources.</p>
                         <div class="api-config-form" style="display: flex; flex-direction: column; gap: 12px;">
                             <div>

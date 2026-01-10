@@ -105,6 +105,56 @@ function setupEventListeners() {
     // Save config button
     document.getElementById('saveConfigBtn').addEventListener('click', saveConfig);
     
+    // JSON viewer buttons
+    const refreshJsonBtn = document.getElementById('refreshJsonBtn');
+    const editJsonBtn = document.getElementById('editJsonBtn');
+    const exportJsonBtn = document.getElementById('exportJsonBtn');
+    const importJsonBtn = document.getElementById('importJsonBtn');
+    const importJsonFile = document.getElementById('importJsonFile');
+    const saveJsonBtn = document.getElementById('saveJsonBtn');
+    const cancelJsonEditBtn = document.getElementById('cancelJsonEditBtn');
+    const importSelectedSlidesBtn = document.getElementById('importSelectedSlidesBtn');
+    const cancelImportBtn = document.getElementById('cancelImportBtn');
+    
+    if (refreshJsonBtn) {
+        refreshJsonBtn.addEventListener('click', refreshJsonViewer);
+    }
+    if (editJsonBtn) {
+        editJsonBtn.addEventListener('click', enableJsonEditing);
+    }
+    if (exportJsonBtn) {
+        exportJsonBtn.addEventListener('click', exportJsonConfig);
+    }
+    if (importJsonBtn) {
+        importJsonBtn.addEventListener('click', () => importJsonFile?.click());
+    }
+    if (importJsonFile) {
+        importJsonFile.addEventListener('change', handleJsonFileImport);
+    }
+    if (saveJsonBtn) {
+        saveJsonBtn.addEventListener('click', saveJsonConfig);
+    }
+    if (cancelJsonEditBtn) {
+        cancelJsonEditBtn.addEventListener('click', cancelJsonEdit);
+    }
+    if (importSelectedSlidesBtn) {
+        importSelectedSlidesBtn.addEventListener('click', importSelectedSlides);
+    }
+    if (cancelImportBtn) {
+        cancelImportBtn.addEventListener('click', cancelImport);
+    }
+    
+    // Enable JSON viewer editing on input
+    const jsonViewer = document.getElementById('jsonViewer');
+    if (jsonViewer) {
+        jsonViewer.addEventListener('input', () => {
+            if (jsonViewer.contentEditable === 'true') {
+                saveJsonBtn.style.display = 'inline-block';
+                cancelJsonEditBtn.style.display = 'inline-block';
+            }
+        });
+    }
+    
     // Slide modal API test button
     const slideTestApiBtn = document.getElementById('slideTestApiBtn');
     if (slideTestApiBtn) {
@@ -137,6 +187,17 @@ function setupEventListeners() {
     }
     if (document.getElementById('clearArmDebugBtn')) {
         document.getElementById('clearArmDebugBtn').addEventListener('click', clearArmDebugLogs);
+    }
+    
+    // Debug buttons - System
+    if (document.getElementById('refreshSystemDebugBtn')) {
+        document.getElementById('refreshSystemDebugBtn').addEventListener('click', loadSystemDebugLogs);
+    }
+    if (document.getElementById('testSystemBtn')) {
+        document.getElementById('testSystemBtn').addEventListener('click', testSystemCollection);
+    }
+    if (document.getElementById('clearSystemDebugBtn')) {
+        document.getElementById('clearSystemDebugBtn').addEventListener('click', clearSystemDebugLogs);
     }
     
     // Close modal on outside click
@@ -189,6 +250,7 @@ function switchToTab(tabName, updateHash = true) {
     } else if (tabName === 'debug') {
         loadDebugLogs();
         loadArmDebugLogs();
+        loadSystemDebugLogs();
     } else if (tabName === 'designer') {
         // Widget designer tab - already initialized on DOMContentLoaded
         // Just ensure designer is visible
@@ -208,6 +270,11 @@ function handleHashNavigation() {
     if (hash && validTabs.includes(hash)) {
         // Don't update hash again since we're responding to hash change
         switchToTab(hash, false);
+        
+        // Load JSON viewer when Config tab is opened
+        if (hash === 'config' && typeof refreshJsonViewer === 'function') {
+            refreshJsonViewer();
+        }
     } else {
         // No hash or invalid hash, default to main tab
         if (!hash || !validTabs.includes(hash)) {
@@ -232,6 +299,11 @@ function setupTabs() {
             // Switch tab immediately for responsive UI
             switchToTab(targetTab, false);
             
+            // Load JSON viewer when Config tab is opened
+            if (targetTab === 'config' && typeof refreshJsonViewer === 'function') {
+                refreshJsonViewer();
+            }
+            
             // Update URL hash - this will trigger hashchange event, but we've already switched so it won't do anything
             // Setting location.hash automatically adds to browser history for back/forward support
             window.location.hash = targetTab;
@@ -244,6 +316,19 @@ function setupCollapsibleSections() {
     const collapsibleHeaders = document.querySelectorAll('.collapsible-header');
     
     collapsibleHeaders.forEach(header => {
+        // Initialize sections - if header has expanded class, ensure content is visible
+        const targetId = header.getAttribute('data-target');
+        if (targetId) {
+            const content = document.getElementById(targetId);
+            if (content && header.classList.contains('expanded')) {
+                content.style.display = 'block';
+                const icon = header.querySelector('.collapse-icon');
+                if (icon) {
+                    icon.textContent = '▼';
+                }
+            }
+        }
+        
         header.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -255,17 +340,24 @@ function setupCollapsibleSections() {
             if (!content) return;
             
             const isExpanded = header.classList.contains('expanded');
+            const icon = header.querySelector('.collapse-icon');
             
             if (isExpanded) {
                 // Collapse
                 header.classList.remove('expanded');
                 content.classList.remove('expanded');
                 content.style.display = 'none';
+                if (icon) {
+                    icon.textContent = '▶';
+                }
             } else {
                 // Expand
                 header.classList.add('expanded');
                 content.classList.add('expanded');
                 content.style.display = 'block';
+                if (icon) {
+                    icon.textContent = '▼';
+                }
             }
         });
     });
@@ -351,7 +443,9 @@ function createSlideElement(slide) {
         'system_stats': 'System Stats',
         'weather': 'Weather',
         'image': 'Image',
-        'static_text': 'Static Text'
+        'static_text': 'Static Text',
+        'clock': 'Clock',
+        'custom': 'Custom Widget'
     };
     
     const badge = slide.conditional ? `<span class="slide-badge badge-conditional">Hide if no data</span>` : '';
@@ -531,10 +625,18 @@ function validateSlideForm() {
     const title = document.getElementById('slideTitle');
     const duration = document.getElementById('slideDuration');
     const refreshDuration = document.getElementById('slideRefreshDuration');
-    const slideType = document.getElementById('slideType').value;
+    const slideTypeEl = document.getElementById('slideType');
     
     // Clear previous errors
     clearValidationErrors();
+    
+    // Check if required elements exist
+    if (!title || !duration || !refreshDuration || !slideTypeEl) {
+        console.error('Required form elements not found');
+        return false;
+    }
+    
+    const slideType = slideTypeEl.value;
     
     // Validate title
     if (!title.value.trim()) {
@@ -556,10 +658,11 @@ function validateSlideForm() {
         isValid = false;
     }
     
-    // Validate weather city if weather type
+    // Validate slide type-specific required fields using dynamic schema fields
+    // For weather, city field is now serviceConfig_city
     if (slideType === 'weather') {
-        const city = document.getElementById('slideCity');
-        if (!city.value.trim()) {
+        const city = document.getElementById('serviceConfig_city');
+        if (city && !city.value.trim()) {
             showFieldError(city, 'City is required for weather slides');
             isValid = false;
         }
@@ -567,23 +670,42 @@ function validateSlideForm() {
     
     // Validate image path if image type
     if (slideType === 'image') {
-        const imagePath = document.getElementById('imagePath')?.value.trim();
-        if (!imagePath) {
-            const imageSelect = document.getElementById('imageSelect');
-            if (imageSelect) {
-                showFieldError(imageSelect, 'Please upload or select an image');
+        const imageSelect = document.getElementById('imageSelect');
+        if (!imageSelect || !imageSelect.value) {
+            const imagePath = document.getElementById('imagePath');
+            if (!imagePath || !imagePath.value.trim()) {
+                if (imageSelect) {
+                    showFieldError(imageSelect, 'Please upload or select an image');
+                }
+                isValid = false;
             }
-            isValid = false;
         }
     }
     
     // Validate static text content if static_text type
+    // Static text fields are now serviceConfig_text, serviceConfig_font_size, etc.
     if (slideType === 'static_text') {
-        const text = document.getElementById('slideText');
-        if (!text.value.trim()) {
+        const text = document.getElementById('serviceConfig_text');
+        if (text && !text.value.trim()) {
             showFieldError(text, 'Text content is required for static text slides');
             isValid = false;
         }
+    }
+    
+    // Validate all required fields from dynamically rendered schema fields
+    const serviceConfigContainer = document.getElementById('slideServiceConfig');
+    if (serviceConfigContainer) {
+        const requiredFields = serviceConfigContainer.querySelectorAll('input[required], select[required], textarea[required]');
+        requiredFields.forEach(fieldEl => {
+            if (fieldEl.required) {
+                const value = fieldEl.type === 'number' ? fieldEl.value : fieldEl.value.trim();
+                if (!value) {
+                    const label = fieldEl.closest('.config-field')?.querySelector('label')?.textContent || 'This field';
+                    showFieldError(fieldEl, `${label} is required`);
+                    isValid = false;
+                }
+            }
+        });
     }
     
     return isValid;
@@ -910,12 +1032,21 @@ function setupSlideAPISection() {
     
     if (!apiHeader || !apiContent) return;
     
+    // Initialize as expanded by default
+    if (apiHeader.classList.contains('expanded')) {
+        apiContent.style.display = 'block';
+        const icon = apiHeader.querySelector('.collapse-icon');
+        if (icon) {
+            icon.textContent = '▼';
+        }
+    }
+    
     // Remove existing listener if any
     const newHeader = apiHeader.cloneNode(true);
     apiHeader.parentNode.replaceChild(newHeader, apiHeader);
     
     newHeader.addEventListener('click', () => {
-        const isExpanded = apiContent.style.display !== 'none';
+        const isExpanded = newHeader.classList.contains('expanded');
         apiContent.style.display = isExpanded ? 'none' : 'block';
         newHeader.classList.toggle('expanded', !isExpanded);
         
@@ -1127,6 +1258,18 @@ function createConfigFieldElement(field) {
             input.accept = field.accept || '*/*';
             input.style.cssText = 'width: 100%; padding: 6px; margin-top: 4px;';
             break;
+        case 'checkbox':
+            input = document.createElement('input');
+            input.type = 'checkbox';
+            input.id = `serviceConfig_${field.name}`;
+            input.checked = field.default !== undefined ? field.default : false;
+            input.style.cssText = 'margin-top: 4px; margin-right: 8px;';
+            // For checkboxes, put the label after the input
+            label.removeAttribute('for');
+            label.style.cssText = 'display: inline-flex; align-items: center; cursor: pointer;';
+            label.insertBefore(input, label.firstChild);
+            div.appendChild(label);
+            return div;
         default:
             input = document.createElement('input');
             input.type = 'text';
@@ -1161,7 +1304,9 @@ function getServiceConfigFromForm(schema) {
             fieldGroup.fields.forEach(field => {
                 const input = document.getElementById(`serviceConfig_${field.name}`);
                 if (input) {
-                    if (field.type === 'number') {
+                    if (field.type === 'checkbox') {
+                        configDict[field.name] = input.checked;
+                    } else if (field.type === 'number') {
                         configDict[field.name] = input.value ? parseInt(input.value) : (field.default || null);
                     } else if (field.type === 'textarea') {
                         // For JSON fields like headers, try to parse
@@ -1181,12 +1326,15 @@ function getServiceConfigFromForm(schema) {
             });
         } else {
             // Direct field (like city, temp_unit for weather)
-            const input = document.getElementById(`serviceConfig_${field.name}`);
+            const fieldName = fieldGroup.name;  // fieldGroup is the direct field definition
+            const input = document.getElementById(`serviceConfig_${fieldName}`);
             if (input) {
-                if (field.type === 'number') {
-                    serviceConfig[field.name] = input.value ? parseInt(input.value) : (field.default || null);
+                if (fieldGroup.type === 'checkbox') {
+                    serviceConfig[fieldName] = input.checked;
+                } else if (fieldGroup.type === 'number') {
+                    serviceConfig[fieldName] = input.value ? parseInt(input.value) : (fieldGroup.default || null);
                 } else {
-                    serviceConfig[field.name] = input.value.trim();
+                    serviceConfig[fieldName] = input.value.trim();
                 }
             }
         }
@@ -1205,14 +1353,16 @@ function populateServiceConfigForm(slide, schema) {
     const serviceConfig = slide.service_config || {};
     const apiConfig = slide.api_config || {};
     
-    schema.fields.forEach(fieldGroup => {
-        if (fieldGroup.type === 'group') {
-            const configDict = fieldGroup.name === 'service_config' ? serviceConfig : apiConfig;
+    schema.fields.forEach(fieldDef => {
+        if (fieldDef.type === 'group') {
+            const configDict = fieldDef.name === 'service_config' ? serviceConfig : apiConfig;
             
-            fieldGroup.fields.forEach(field => {
+            fieldDef.fields.forEach(field => {
                 const input = document.getElementById(`serviceConfig_${field.name}`);
                 if (input && configDict[field.name] !== undefined) {
-                    if (field.type === 'textarea' && (field.name === 'headers' || field.name === 'body')) {
+                    if (field.type === 'checkbox') {
+                        input.checked = configDict[field.name] === true || configDict[field.name] === 'true';
+                    } else if (field.type === 'textarea' && (field.name === 'headers' || field.name === 'body')) {
                         // Format JSON for display
                         input.value = typeof configDict[field.name] === 'string' 
                             ? configDict[field.name] 
@@ -1223,10 +1373,15 @@ function populateServiceConfigForm(slide, schema) {
                 }
             });
         } else {
-            // Direct field (like city, temp_unit)
-            const input = document.getElementById(`serviceConfig_${field.name}`);
-            if (input && slide[field.name] !== undefined) {
-                input.value = slide[field.name];
+            // Direct field (like city, temp_unit, text, image_path)
+            const fieldName = fieldDef.name;
+            const input = document.getElementById(`serviceConfig_${fieldName}`);
+            if (input && slide[fieldName] !== undefined) {
+                if (fieldDef.type === 'checkbox') {
+                    input.checked = slide[fieldName] === true || slide[fieldName] === 'true';
+                } else {
+                    input.value = slide[fieldName];
+                }
             }
         }
     });
@@ -1426,6 +1581,8 @@ async function handleSlideSubmit(e) {
                             if (value !== null && value !== undefined) {
                                 formData[fieldDef.name] = value;
                             }
+                        } else if (fieldDef.type === 'checkbox') {
+                            formData[fieldDef.name] = input.checked;
                         } else if (fieldDef.type === 'select') {
                             const value = input.value;
                             if (value) {
@@ -1709,6 +1866,343 @@ async function saveConfig() {
     }
 }
 
+// JSON Viewer State
+let jsonViewerOriginalData = null;
+let importedConfigData = null;
+
+// Refresh JSON Viewer
+async function refreshJsonViewer() {
+    const jsonViewer = document.getElementById('jsonViewer');
+    if (!jsonViewer) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/slides`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const data = await response.json();
+        jsonViewerOriginalData = data;
+        jsonViewer.textContent = JSON.stringify(data, null, 2);
+        jsonViewer.contentEditable = 'false';
+        jsonViewer.style.backgroundColor = '#f9f9f9';
+        jsonViewer.classList.remove('json-error');
+        
+        // Hide save/cancel buttons and show edit button
+        document.getElementById('saveJsonBtn').style.display = 'none';
+        document.getElementById('cancelJsonEditBtn').style.display = 'none';
+        document.getElementById('editJsonBtn').style.display = 'inline-block';
+        
+        // Hide import slide selector
+        document.getElementById('importSlideSelector').style.display = 'none';
+        importedConfigData = null;
+    } catch (error) {
+        console.error('Error loading JSON:', error);
+        jsonViewer.textContent = `Error loading configuration: ${error.message}`;
+        jsonViewer.classList.add('json-error');
+        showError(`Failed to load configuration: ${error.message}`);
+    }
+}
+
+// Enable JSON Editing
+function enableJsonEditing() {
+    const jsonViewer = document.getElementById('jsonViewer');
+    if (!jsonViewer) return;
+    
+    jsonViewer.contentEditable = 'true';
+    jsonViewer.style.backgroundColor = '#fff';
+    jsonViewer.focus();
+    
+    // Hide edit button, show save/cancel buttons
+    document.getElementById('editJsonBtn').style.display = 'none';
+    document.getElementById('saveJsonBtn').style.display = 'inline-block';
+    document.getElementById('cancelJsonEditBtn').style.display = 'inline-block';
+}
+
+// Export JSON Config
+function exportJsonConfig() {
+    const jsonViewer = document.getElementById('jsonViewer');
+    if (!jsonViewer) return;
+    
+    try {
+        const jsonText = jsonViewer.textContent;
+        const data = JSON.parse(jsonText);
+        const jsonString = JSON.stringify(data, null, 2);
+        
+        // Create blob and download
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `slides-config-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showSuccess('Configuration exported successfully');
+    } catch (error) {
+        console.error('Error exporting JSON:', error);
+        showError(`Failed to export configuration: ${error.message}. Please ensure the JSON is valid.`);
+    }
+}
+
+// Handle JSON File Import
+async function handleJsonFileImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const jsonText = e.target.result;
+            const data = JSON.parse(jsonText);
+            
+            // Validate structure
+            if (!data || typeof data !== 'object') {
+                throw new Error('Invalid JSON: must be an object');
+            }
+            
+            if (!data.slides || !Array.isArray(data.slides)) {
+                throw new Error('Invalid configuration: missing or invalid "slides" array');
+            }
+            
+            // Show import options: import all or select individual slides
+            importedConfigData = data;
+            showImportSlideSelector(data.slides);
+            
+            // Also update the JSON viewer with imported data
+            const jsonViewer = document.getElementById('jsonViewer');
+            jsonViewer.textContent = JSON.stringify(data, null, 2);
+            jsonViewer.contentEditable = 'false';
+            jsonViewer.style.backgroundColor = '#f9f9f9';
+            jsonViewer.classList.remove('json-error');
+            document.getElementById('editJsonBtn').style.display = 'inline-block';
+            
+            showSuccess(`Configuration loaded. Found ${data.slides.length} slide(s). Select slides to import or import all.`);
+        } catch (error) {
+            console.error('Error parsing imported JSON:', error);
+            showError(`Failed to import configuration: ${error.message}`);
+        }
+    };
+    
+    reader.readAsText(file);
+    // Reset file input
+    event.target.value = '';
+}
+
+// Show Import Slide Selector
+function showImportSlideSelector(importedSlides) {
+    const selector = document.getElementById('importSlideSelector');
+    const slideList = document.getElementById('importSlideList');
+    
+    if (!selector || !slideList) return;
+    
+    slideList.innerHTML = '';
+    
+    importedSlides.forEach((slide, index) => {
+        const slideDiv = document.createElement('div');
+        slideDiv.className = 'import-slide-item';
+        slideDiv.style.cssText = 'padding: 8px; margin-bottom: 8px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9;';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `import-slide-${index}`;
+        checkbox.value = index;
+        checkbox.checked = true;
+        checkbox.style.marginRight = '8px';
+        
+        const label = document.createElement('label');
+        label.htmlFor = `import-slide-${index}`;
+        label.style.cssText = 'cursor: pointer; font-size: 13px;';
+        label.innerHTML = `<strong>${slide.title || 'Untitled'}</strong> (Type: ${slide.type || 'unknown'}, ID: ${slide.id || 'N/A'})`;
+        
+        slideDiv.appendChild(checkbox);
+        slideDiv.appendChild(label);
+        slideList.appendChild(slideDiv);
+    });
+    
+    // Add "Select All" / "Deselect All" buttons
+    const selectAllDiv = document.createElement('div');
+    selectAllDiv.style.cssText = 'margin-bottom: 12px;';
+    const selectAllBtn = document.createElement('button');
+    selectAllBtn.textContent = 'Select All';
+    selectAllBtn.className = 'btn btn-small btn-secondary';
+    selectAllBtn.onclick = () => {
+        slideList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+    };
+    const deselectAllBtn = document.createElement('button');
+    deselectAllBtn.textContent = 'Deselect All';
+    deselectAllBtn.className = 'btn btn-small btn-secondary';
+    deselectAllBtn.onclick = () => {
+        slideList.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+    };
+    selectAllDiv.appendChild(selectAllBtn);
+    selectAllDiv.appendChild(deselectAllBtn);
+    slideList.insertBefore(selectAllDiv, slideList.firstChild);
+    
+    selector.style.display = 'block';
+}
+
+// Import Selected Slides
+async function importSelectedSlides() {
+    if (!importedConfigData) {
+        showError('No imported configuration available');
+        return;
+    }
+    
+    const checkboxes = document.querySelectorAll('#importSlideList input[type="checkbox"]:checked');
+    const selectedIndices = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    
+    if (selectedIndices.length === 0) {
+        showError('Please select at least one slide to import');
+        return;
+    }
+    
+    try {
+        // Get current configuration
+        const currentResponse = await fetch(`${API_BASE}/slides`);
+        if (!currentResponse.ok) {
+            throw new Error(`Failed to load current configuration: ${currentResponse.statusText}`);
+        }
+        const currentConfig = await currentResponse.json();
+        const currentSlides = currentConfig.slides || [];
+        
+        // Get max ID from current slides
+        const maxId = currentSlides.length > 0 
+            ? Math.max(...currentSlides.map(s => s.id || 0))
+            : 0;
+        
+        // Import selected slides with new IDs
+        const slidesToImport = selectedIndices.map(index => {
+            const slide = JSON.parse(JSON.stringify(importedConfigData.slides[index]));
+            // Remove old ID, will be assigned new one
+            delete slide.id;
+            return slide;
+        });
+        
+        // Assign new IDs and order values
+        slidesToImport.forEach((slide, i) => {
+            slide.id = maxId + i + 1;
+            slide.order = currentSlides.length + i;
+        });
+        
+        // Add to current slides
+        const updatedSlides = [...currentSlides, ...slidesToImport];
+        const updatedConfig = {
+            ...currentConfig,
+            slides: updatedSlides
+        };
+        
+        // Save updated configuration
+        const saveResponse = await fetch(`${API_BASE}/slides`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedConfig)
+        });
+        
+        if (!saveResponse.ok) {
+            const errorData = await saveResponse.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${saveResponse.status}: ${saveResponse.statusText}`);
+        }
+        
+        showSuccess(`Successfully imported ${slidesToImport.length} slide(s)`);
+        
+        // Reload slides and refresh JSON viewer
+        await loadSlides();
+        await refreshJsonViewer();
+        
+        // Hide import selector
+        document.getElementById('importSlideSelector').style.display = 'none';
+        importedConfigData = null;
+    } catch (error) {
+        console.error('Error importing slides:', error);
+        showError(`Failed to import slides: ${error.message}`);
+    }
+}
+
+// Cancel Import
+function cancelImport() {
+    document.getElementById('importSlideSelector').style.display = 'none';
+    importedConfigData = null;
+    refreshJsonViewer();
+}
+
+// Save JSON Config
+async function saveJsonConfig() {
+    const jsonViewer = document.getElementById('jsonViewer');
+    if (!jsonViewer) return;
+    
+    const saveBtn = document.getElementById('saveJsonBtn');
+    setButtonLoading(saveBtn, true);
+    
+    try {
+        const jsonText = jsonViewer.textContent;
+        const data = JSON.parse(jsonText);
+        
+        // Validate structure
+        if (!data || typeof data !== 'object') {
+            throw new Error('Invalid JSON: must be an object');
+        }
+        
+        if (!data.slides || !Array.isArray(data.slides)) {
+            throw new Error('Invalid configuration: missing or invalid "slides" array');
+        }
+        
+        // Validate each slide
+        for (const slide of data.slides) {
+            if (!slide.id || !slide.type) {
+                throw new Error('Invalid configuration: each slide must have "id" and "type"');
+            }
+        }
+        
+        // Save configuration
+        const response = await fetch(`${API_BASE}/slides`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        jsonViewerOriginalData = data;
+        saveBtn.style.display = 'none';
+        document.getElementById('cancelJsonEditBtn').style.display = 'none';
+        document.getElementById('editJsonBtn').style.display = 'inline-block';
+        
+        // Make read-only again
+        jsonViewer.contentEditable = 'false';
+        jsonViewer.style.backgroundColor = '#f9f9f9';
+        
+        showSuccess('Configuration saved successfully');
+        
+        // Reload slides to reflect changes
+        await loadSlides();
+    } catch (error) {
+        console.error('Error saving JSON:', error);
+        showError(`Failed to save configuration: ${error.message}`);
+        jsonViewer.classList.add('json-error');
+    } finally {
+        setButtonLoading(saveBtn, false);
+    }
+}
+
+// Cancel JSON Edit
+function cancelJsonEdit() {
+    const jsonViewer = document.getElementById('jsonViewer');
+    if (!jsonViewer || !jsonViewerOriginalData) return;
+    
+    jsonViewer.textContent = JSON.stringify(jsonViewerOriginalData, null, 2);
+    jsonViewer.classList.remove('json-error');
+    jsonViewer.contentEditable = 'false';
+    jsonViewer.style.backgroundColor = '#f9f9f9';
+    document.getElementById('saveJsonBtn').style.display = 'none';
+    document.getElementById('cancelJsonEditBtn').style.display = 'none';
+    document.getElementById('editJsonBtn').style.display = 'inline-block';
+}
+
 // Current Slide Preview Functions
 function startCurrentSlideRefresh() {
     // Load immediately
@@ -1955,8 +2449,15 @@ function updateWindowStatusBar() {
 // Debug Functions
 async function loadDebugLogs() {
     try {
+        console.log('Loading Plex debug logs from:', `${API_BASE}/debug/plex`);
         const response = await fetch(`${API_BASE}/debug/plex`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
+        console.log('Plex debug response:', data);
         
         // Update debug info
         document.getElementById('debugApiUrl').textContent = data.api_url || 'Not configured';
@@ -1979,14 +2480,22 @@ async function loadDebugLogs() {
         
         // Display logs
         const logsDiv = document.getElementById('debugLogs');
+        if (!logsDiv) {
+            console.error('debugLogs element not found');
+            return;
+        }
+        
         if (!data.logs || data.logs.length === 0) {
+            console.log('No Plex debug logs found');
             logsDiv.innerHTML = '<div class="debug-empty">No debug logs available yet. Try making a request or click "Test Connection".</div>';
             return;
         }
         
+        console.log(`Displaying ${data.logs.length} Plex debug log entries`);
+        
         let html = '<div class="debug-log-list">';
-        // Show logs in reverse order (most recent first)
-        data.logs.slice().reverse().forEach((log, index) => {
+        // Logs are already sorted most recent first from backend, so no need to reverse
+        data.logs.forEach((log, index) => {
             const hasError = !!log.error;
             const statusClass = hasError ? 'error' : (log.status_code === 200 ? 'success' : 'warning');
             
@@ -2130,8 +2639,15 @@ async function clearDebugLogs() {
 // ARM Debug Functions
 async function loadArmDebugLogs() {
     try {
+        console.log('Loading ARM debug logs from:', `${API_BASE}/debug/arm`);
         const response = await fetch(`${API_BASE}/debug/arm`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
+        console.log('ARM debug response:', data);
         
         // Update debug info
         document.getElementById('armDebugApiUrl').textContent = data.api_url || 'Not configured';
@@ -2157,14 +2673,22 @@ async function loadArmDebugLogs() {
         
         // Display logs
         const logsDiv = document.getElementById('armDebugLogs');
+        if (!logsDiv) {
+            console.error('armDebugLogs element not found');
+            return;
+        }
+        
         if (!data.logs || data.logs.length === 0) {
+            console.log('No ARM debug logs found');
             logsDiv.innerHTML = '<div class="debug-empty">No debug logs available yet. Try making a request or click "Test Connection".</div>';
             return;
         }
         
+        console.log(`Displaying ${data.logs.length} ARM debug log entries`);
+        
         let html = '<div class="debug-log-list">';
-        // Show logs in reverse order (most recent first)
-        data.logs.slice().reverse().forEach((log, index) => {
+        // Logs are already sorted most recent first from backend, so no need to reverse
+        data.logs.forEach((log, index) => {
             const hasError = !!log.error;
             const statusClass = hasError ? 'error' : (log.status_code === 200 ? 'success' : 'warning');
             
@@ -2303,6 +2827,161 @@ async function clearArmDebugLogs() {
     // For now, we'll just reload which will show current logs
     document.getElementById('armDebugLogs').innerHTML = '<div class="debug-empty">Debug logs cleared. New requests will populate logs.</div>';
     showSuccess('ARM debug logs cleared');
+}
+
+// System Debug Functions
+async function loadSystemDebugLogs() {
+    try {
+        console.log('Loading system debug logs...');
+        const response = await fetch(`${API_BASE}/debug/system`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('System debug data:', data);
+        
+        // Update debug info
+        document.getElementById('systemDebugSlideCount').textContent = data.total_slides || 0;
+        document.getElementById('systemDebugLogCount').textContent = data.log_count || 0;
+        
+        // Update last collection time
+        if (data.logs && data.logs.length > 0) {
+            const latestLog = data.logs[0]; // Most recent is first
+            document.getElementById('systemDebugLastCollection').textContent = latestLog.timestamp_readable || '-';
+        } else {
+            document.getElementById('systemDebugLastCollection').textContent = '-';
+        }
+        
+        // Display logs
+        const logsDiv = document.getElementById('systemDebugLogs');
+        if (!data.logs || data.logs.length === 0) {
+            logsDiv.innerHTML = '<div class="debug-empty">No debug logs available yet. System stats will be collected automatically, or click "Test Collection" to force a collection.</div>';
+            return;
+        }
+        
+        let html = '<div class="debug-log-list">';
+        // Show logs (most recent first - they're already sorted)
+        data.logs.forEach((log, index) => {
+            const hasError = log.errors && log.errors.length > 0;
+            const statusClass = hasError ? 'error' : (log.success ? 'success' : 'warning');
+            
+            html += `<div class="debug-log-entry ${statusClass}">`;
+            html += '<div class="debug-log-header">';
+            html += `<span class="debug-log-time">${log.timestamp_readable || 'Unknown time'}</span>`;
+            html += `<span class="debug-log-status">${log.success ? 'SUCCESS' : 'FAILED'}</span>`;
+            if (log.slide_title) {
+                html += `<span class="debug-log-endpoint">${log.slide_title} (ID: ${log.slide_id})</span>`;
+            }
+            html += `<span class="debug-log-method">${log.collection_time_ms}ms</span>`;
+            html += '</div>';
+            
+            if (log.success) {
+                html += '<div class="debug-log-details">';
+                if (log.cpu_percent !== null && log.cpu_percent !== undefined) {
+                    html += `<p><strong>CPU:</strong> ${log.cpu_percent}%</p>`;
+                }
+                if (log.memory_percent !== null && log.memory_percent !== undefined) {
+                    html += `<p><strong>Memory:</strong> ${log.memory_percent}%</p>`;
+                }
+                if (log.disk_count !== null && log.disk_count !== undefined) {
+                    html += `<p><strong>Disks Monitored:</strong> ${log.disk_count}</p>`;
+                }
+                if (log.nas_mounts_configured !== null && log.nas_mounts_configured !== undefined) {
+                    html += `<p><strong>NAS Mounts Configured:</strong> ${log.nas_mounts_configured}</p>`;
+                }
+                html += '</div>';
+                
+                // Show mount checks
+                if (log.mount_checks && log.mount_checks.length > 0) {
+                    html += '<div class="debug-log-section">';
+                    html += '<strong>Mount Point Checks:</strong>';
+                    html += '<pre>';
+                    log.mount_checks.forEach(mount => {
+                        html += `Path: ${mount.path}\n`;
+                        html += `  Exists: ${mount.exists ? 'Yes' : 'No'}\n`;
+                        html += `  Accessible: ${mount.accessible ? 'Yes' : 'No'}\n`;
+                        if (mount.percent !== undefined) {
+                            html += `  Usage: ${mount.percent}%\n`;
+                        }
+                        if (mount.error) {
+                            html += `  Error: ${mount.error}\n`;
+                        }
+                        if (mount.note) {
+                            html += `  Note: ${mount.note}\n`;
+                        }
+                        html += '\n';
+                    });
+                    html += '</pre>';
+                    html += '</div>';
+                }
+            }
+            
+            // Show errors if any
+            if (log.errors && log.errors.length > 0) {
+                html += '<div class="debug-log-section">';
+                html += '<strong class="debug-log-error">Errors:</strong>';
+                html += '<pre>';
+                log.errors.forEach(error => {
+                    html += `${error}\n`;
+                });
+                html += '</pre>';
+                html += '</div>';
+            }
+            
+            html += '</div>';
+        });
+        html += '</div>';
+        
+        logsDiv.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading System debug logs:', error);
+        const logsDiv = document.getElementById('systemDebugLogs');
+        if (logsDiv) {
+            logsDiv.innerHTML = `<div class="debug-error">Error loading debug logs: ${error.message}<br/><button class="btn btn-small btn-primary" onclick="loadSystemDebugLogs()">Retry</button></div>`;
+        }
+        showError(`Failed to load System debug logs: ${error.message}`);
+    }
+}
+
+async function testSystemCollection() {
+    const testBtn = document.getElementById('testSystemBtn');
+    const originalText = testBtn.textContent;
+    setButtonLoading(testBtn, true);
+    
+    try {
+        const response = await fetch(`${API_BASE}/debug/system/test`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess(`Collection test successful! Collected ${data.result_keys ? data.result_keys.length : 0} data keys.`);
+        } else {
+            showError(`Collection test failed: ${data.error || 'Unknown error'}`);
+        }
+        
+        // Refresh logs after test
+        await loadSystemDebugLogs();
+    } catch (error) {
+        console.error('Error testing System collection:', error);
+        showError(`Error testing collection: ${error.message}`);
+    } finally {
+        setButtonLoading(testBtn, false, originalText);
+    }
+}
+
+async function clearSystemDebugLogs() {
+    const confirmed = await showConfirm('Clear System debug logs? This cannot be undone.', 'Clear Logs');
+    if (!confirmed) {
+        return;
+    }
+    
+    // Note: This would require a backend endpoint to clear logs
+    // For now, we'll just reload which will show current logs
+    document.getElementById('systemDebugLogs').innerHTML = '<div class="debug-empty">Debug logs cleared. New collections will populate logs.</div>';
+    showSuccess('System debug logs cleared');
 }
 
 // Keyboard Shortcuts

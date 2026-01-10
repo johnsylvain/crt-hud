@@ -64,6 +64,32 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
         config["slides"] = slides
         return jsonify(config)
     
+    @app.route("/api/slides", methods=["PUT"])
+    def update_all_slides():
+        """Update entire slides configuration."""
+        data = request.get_json()
+        
+        # Validate structure
+        if not isinstance(data, dict):
+            return jsonify({"error": "Invalid configuration: must be a JSON object"}), 400
+        
+        if "slides" not in data:
+            return jsonify({"error": "Invalid configuration: missing 'slides' array"}), 400
+        
+        if not isinstance(data["slides"], list):
+            return jsonify({"error": "Invalid configuration: 'slides' must be an array"}), 400
+        
+        # Validate each slide
+        for slide in data["slides"]:
+            if not isinstance(slide, dict):
+                return jsonify({"error": "Invalid configuration: each slide must be an object"}), 400
+            if "id" not in slide or "type" not in slide:
+                return jsonify({"error": "Invalid configuration: each slide must have 'id' and 'type'"}), 400
+        
+        # Save the configuration
+        save_slides_config(data)
+        return jsonify({"success": True, "config": data})
+    
     @app.route("/api/slides", methods=["POST"])
     def create_slide():
         """Create a new slide."""
@@ -283,22 +309,104 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
     
     @app.route("/api/debug/plex", methods=["GET"])
     def get_plex_debug():
-        """Get Plex collector debug logs."""
-        if collectors is None or "plex" not in collectors:
-            return jsonify({"error": "Plex collector not available", "logs": []}), 200
+        """Get Plex collector debug logs from all plex slides."""
+        from config import get_slides_config
+        from backend.slides import SlideTypeRegistry
         
-        plex_collector = collectors["plex"]
-        logs = []
+        config = get_slides_config()
+        slides = config.get("slides", [])
         
-        if hasattr(plex_collector, "get_debug_logs"):
-            logs = plex_collector.get_debug_logs()
-        elif hasattr(plex_collector, "debug_logs"):
-            logs = plex_collector.debug_logs.copy()
+        # Try to get collectors from running app instance first
+        app_instance = app.config.get('APP_INSTANCE')
+        stored_collectors = {}
+        if app_instance and hasattr(app_instance, 'slide_collectors'):
+            with app_instance.slide_collectors_lock:
+                stored_collectors = app_instance.slide_collectors.copy()
+        
+        # Find all plex_now_playing slides and aggregate their debug logs
+        all_logs = []
+        plex_slides_info = []
+        api_url = ""
+        has_token = False
+        
+        for slide in slides:
+            if slide.get("type") == "plex_now_playing":
+                slide_id = slide.get("id")
+                slide_title = slide.get("title", f"Slide {slide_id}")
+                
+                collector = None
+                logs = []
+                
+                # Try to get stored collector first (has historical logs from display loop)
+                if slide_id in stored_collectors:
+                    collector = stored_collectors[slide_id]
+                    if hasattr(collector, "get_debug_logs"):
+                        logs = collector.get_debug_logs()
+                        print(f"Found stored Plex collector for slide {slide_id} with {len(logs)} log entries")
+                
+                # Create collector if we don't have one yet
+                slide_type = SlideTypeRegistry.get("plex_now_playing")
+                if not collector and slide_type:
+                    try:
+                        config_data = {
+                            "service_config": slide.get("service_config", {}),
+                            "api_config": slide.get("api_config")
+                        }
+                        collector = slide_type.create_collector(config_data)
+                        print(f"Created new Plex collector for slide {slide_id}")
+                    except Exception as e:
+                        print(f"Error creating Plex collector for slide {slide_id}: {e}")
+                        collector = None
+                
+                # Always force a collection to ensure we have at least one log entry
+                if collector and hasattr(collector, "_fetch_data"):
+                    try:
+                        print(f"Forcing Plex collection for slide {slide_id} to ensure debug logs exist")
+                        collector._fetch_data()  # This will populate debug logs via _log_debug
+                        
+                        # Get logs after forced collection
+                        if hasattr(collector, "get_debug_logs"):
+                            logs = collector.get_debug_logs()
+                            print(f"After forced collection, Plex slide {slide_id} has {len(logs)} log entries")
+                    except Exception as e:
+                        print(f"Error forcing Plex collection for debug logs: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                # Store collector in app_instance for future debug log access
+                if collector and app_instance and hasattr(app_instance, 'slide_collectors'):
+                    with app_instance.slide_collectors_lock:
+                        app_instance.slide_collectors[slide_id] = collector
+                        print(f"Stored Plex collector for slide {slide_id} in app_instance")
+                
+                # Extract API info from first collector we find
+                if collector and not api_url:
+                    api_url = collector.api_url if hasattr(collector, "api_url") else ""
+                    has_token = bool(collector.api_token) if hasattr(collector, "api_token") else False
+                
+                # Add slide info to each log entry
+                if logs:
+                    for log in logs:
+                        log_with_slide = log.copy()
+                        log_with_slide["slide_id"] = slide_id
+                        log_with_slide["slide_title"] = slide_title
+                        all_logs.append(log_with_slide)
+                
+                plex_slides_info.append({
+                    "slide_id": slide_id,
+                    "slide_title": slide_title,
+                    "log_count": len(logs),
+                    "api_url": collector.api_url if collector and hasattr(collector, "api_url") else "",
+                    "has_token": bool(collector.api_token) if collector and hasattr(collector, "api_token") else False
+                })
+        
+        # Sort logs by timestamp (most recent first)
+        all_logs.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
         
         # Format logs with readable timestamps
         from datetime import datetime
         formatted_logs = []
-        for log in logs:
+        for log in all_logs:
             formatted_log = log.copy()
             if "timestamp" in formatted_log:
                 formatted_log["timestamp_readable"] = datetime.fromtimestamp(formatted_log["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
@@ -306,64 +414,124 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
         
         return jsonify({
             "collector": "plex",
-            "api_url": plex_collector.api_url if hasattr(plex_collector, "api_url") else "",
-            "has_token": bool(plex_collector.api_token) if hasattr(plex_collector, "api_token") else False,
+            "plex_slides": plex_slides_info,
+            "api_url": api_url,
+            "has_token": has_token,
             "logs": formatted_logs,
-            "log_count": len(formatted_logs)
+            "log_count": len(formatted_logs),
+            "total_slides": len(plex_slides_info)
         })
     
     @app.route("/api/debug/plex/test", methods=["POST"])
     def test_plex_connection():
-        """Test Plex API connection by making a request."""
-        if collectors is None or "plex" not in collectors:
-            return jsonify({"error": "Plex collector not available"}), 500
+        """Test Plex API connection by forcing a collection on the first plex slide."""
+        from config import get_slides_config
+        from backend.slides import SlideTypeRegistry
         
-        plex_collector = collectors["plex"]
+        config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Find first plex_now_playing slide for testing
+        plex_slide = None
+        for slide in slides:
+            if slide.get("type") == "plex_now_playing":
+                plex_slide = slide
+                break
+        
+        if not plex_slide:
+            return jsonify({"error": "No Plex slides configured"}), 404
+        
+        slide_type = SlideTypeRegistry.get("plex_now_playing")
+        if not slide_type:
+            return jsonify({"error": "Plex slide type not available"}), 500
+        
+        # Create collector for testing
+        collector = None
+        try:
+            config_data = {
+                "service_config": plex_slide.get("service_config", {}),
+                "api_config": plex_slide.get("api_config")
+            }
+            collector = slide_type.create_collector(config_data)
+        except Exception as e:
+            print(f"Error creating Plex collector for test: {e}")
+            return jsonify({"error": f"Failed to create collector: {str(e)}"}), 500
+        
+        if not collector:
+            return jsonify({"error": "Plex collector could not be created"}), 500
         
         # Force a fetch (bypasses cache)
-        if hasattr(plex_collector, "_fetch_data"):
-            # Clear cache first to force fresh fetch
-            if hasattr(plex_collector, "clear_cache"):
-                plex_collector.clear_cache()
-            
-            result = plex_collector._fetch_data()
-            logs = plex_collector.get_debug_logs() if hasattr(plex_collector, "get_debug_logs") else []
-            
-            return jsonify({
-                "success": result is not None,
-                "result": result,
-                "result_type": type(result).__name__,
-                "result_keys": list(result.keys()) if isinstance(result, dict) else None,
-                "has_active_streams": plex_collector.has_active_streams() if hasattr(plex_collector, "has_active_streams") else None,
-                "latest_log": logs[-1] if logs else None
-            })
-        else:
-            return jsonify({"error": "Cannot test connection"}), 500
+        result = None
+        logs = []
+        if hasattr(collector, "_fetch_data"):
+            if hasattr(collector, "clear_cache"):
+                collector.clear_cache()
+            result = collector._fetch_data()
+            if hasattr(collector, "get_debug_logs"):
+                logs = collector.get_debug_logs()
+        
+        return jsonify({
+            "success": result is not None,
+            "result": result,
+            "result_type": type(result).__name__ if result else None,
+            "result_keys": list(result.keys()) if isinstance(result, dict) else None,
+            "has_active_streams": collector.has_active_streams() if hasattr(collector, "has_active_streams") else None,
+            "latest_log": logs[-1] if logs else None
+        })
     
     @app.route("/api/debug/plex/data", methods=["GET"])
     def get_plex_data():
-        """Get current Plex data (bypassing cache)."""
-        if collectors is None or "plex" not in collectors:
-            return jsonify({"error": "Plex collector not available"}), 500
+        """Get current Plex data (bypassing cache) from the first plex slide."""
+        from config import get_slides_config
+        from backend.slides import SlideTypeRegistry
         
-        plex_collector = collectors["plex"]
+        config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Find first plex_now_playing slide
+        plex_slide = None
+        for slide in slides:
+            if slide.get("type") == "plex_now_playing":
+                plex_slide = slide
+                break
+        
+        if not plex_slide:
+            return jsonify({"error": "No Plex slides configured"}), 404
+        
+        slide_type = SlideTypeRegistry.get("plex_now_playing")
+        if not slide_type:
+            return jsonify({"error": "Plex slide type not available"}), 500
+        
+        # Create collector
+        collector = None
+        try:
+            config_data = {
+                "service_config": plex_slide.get("service_config", {}),
+                "api_config": plex_slide.get("api_config")
+            }
+            collector = slide_type.create_collector(config_data)
+        except Exception as e:
+            return jsonify({"error": f"Failed to create collector: {str(e)}"}), 500
+        
+        if not collector:
+            return jsonify({"error": "Plex collector could not be created"}), 500
         
         # Get cached data first
         cached_data = None
-        if hasattr(plex_collector, "get_data"):
-            cached_data = plex_collector.get_data()
+        if hasattr(collector, "get_data"):
+            cached_data = collector.get_data()
         
         # Force fresh fetch by clearing cache
         fresh_data = None
-        if hasattr(plex_collector, "clear_cache"):
-            plex_collector.clear_cache()
-        if hasattr(plex_collector, "_fetch_data"):
-            fresh_data = plex_collector._fetch_data()
+        if hasattr(collector, "clear_cache"):
+            collector.clear_cache()
+        if hasattr(collector, "_fetch_data"):
+            fresh_data = collector._fetch_data()
         
         # Check what get_data returns after fresh fetch
         final_data = None
-        if hasattr(plex_collector, "get_data"):
-            final_data = plex_collector.get_data()
+        if hasattr(collector, "get_data"):
+            final_data = collector.get_data()
         
         return jsonify({
             "cached_data_before": cached_data,
@@ -372,27 +540,112 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             "fresh_data_type": type(fresh_data).__name__ if fresh_data is not None else "None",
             "get_data_after_fresh": final_data,
             "final_data_type": type(final_data).__name__ if final_data is not None else "None",
-            "has_active_streams": plex_collector.has_active_streams() if hasattr(plex_collector, "has_active_streams") else None,
+            "has_active_streams": collector.has_active_streams() if hasattr(collector, "has_active_streams") else None,
         })
     
     @app.route("/api/debug/arm", methods=["GET"])
     def get_arm_debug():
-        """Get ARM collector debug logs."""
-        if collectors is None or "arm" not in collectors:
-            return jsonify({"error": "ARM collector not available", "logs": []}), 200
+        """Get ARM collector debug logs from all ARM slides."""
+        from config import get_slides_config
+        from backend.slides import SlideTypeRegistry
         
-        arm_collector = collectors["arm"]
-        logs = []
+        config = get_slides_config()
+        slides = config.get("slides", [])
         
-        if hasattr(arm_collector, "get_debug_logs"):
-            logs = arm_collector.get_debug_logs()
-        elif hasattr(arm_collector, "debug_logs"):
-            logs = arm_collector.debug_logs.copy()
+        # Try to get collectors from running app instance first
+        app_instance = app.config.get('APP_INSTANCE')
+        stored_collectors = {}
+        if app_instance and hasattr(app_instance, 'slide_collectors'):
+            with app_instance.slide_collectors_lock:
+                stored_collectors = app_instance.slide_collectors.copy()
+        
+        # Find all arm_rip_progress slides and aggregate their debug logs
+        all_logs = []
+        arm_slides_info = []
+        api_url = ""
+        has_key = False
+        endpoint = ""
+        
+        for slide in slides:
+            if slide.get("type") == "arm_rip_progress":
+                slide_id = slide.get("id")
+                slide_title = slide.get("title", f"Slide {slide_id}")
+                
+                collector = None
+                logs = []
+                
+                # Try to get stored collector first (has historical logs from display loop)
+                if slide_id in stored_collectors:
+                    collector = stored_collectors[slide_id]
+                    if hasattr(collector, "get_debug_logs"):
+                        logs = collector.get_debug_logs()
+                        print(f"Found stored ARM collector for slide {slide_id} with {len(logs)} log entries")
+                
+                # Create collector if we don't have one yet
+                slide_type = SlideTypeRegistry.get("arm_rip_progress")
+                if not collector and slide_type:
+                    try:
+                        config_data = {
+                            "service_config": slide.get("service_config", {}),
+                            "api_config": slide.get("api_config")
+                        }
+                        collector = slide_type.create_collector(config_data)
+                        print(f"Created new ARM collector for slide {slide_id}")
+                    except Exception as e:
+                        print(f"Error creating ARM collector for slide {slide_id}: {e}")
+                        collector = None
+                
+                # Always force a collection to ensure we have at least one log entry
+                if collector and hasattr(collector, "_fetch_data"):
+                    try:
+                        print(f"Forcing ARM collection for slide {slide_id} to ensure debug logs exist")
+                        collector._fetch_data()  # This will populate debug logs via _log_debug
+                        
+                        # Get logs after forced collection
+                        if hasattr(collector, "get_debug_logs"):
+                            logs = collector.get_debug_logs()
+                            print(f"After forced collection, ARM slide {slide_id} has {len(logs)} log entries")
+                    except Exception as e:
+                        print(f"Error forcing ARM collection for debug logs: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                # Store collector in app_instance for future debug log access
+                if collector and app_instance and hasattr(app_instance, 'slide_collectors'):
+                    with app_instance.slide_collectors_lock:
+                        app_instance.slide_collectors[slide_id] = collector
+                        print(f"Stored ARM collector for slide {slide_id} in app_instance")
+                
+                # Extract API info from first collector we find
+                if collector and not api_url:
+                    api_url = collector.api_url if hasattr(collector, "api_url") else ""
+                    has_key = bool(collector.api_key) if hasattr(collector, "api_key") else False
+                    endpoint = collector.endpoint if hasattr(collector, "endpoint") else ""
+                
+                # Add slide info to each log entry
+                if logs:
+                    for log in logs:
+                        log_with_slide = log.copy()
+                        log_with_slide["slide_id"] = slide_id
+                        log_with_slide["slide_title"] = slide_title
+                        all_logs.append(log_with_slide)
+                
+                arm_slides_info.append({
+                    "slide_id": slide_id,
+                    "slide_title": slide_title,
+                    "log_count": len(logs),
+                    "api_url": collector.api_url if collector and hasattr(collector, "api_url") else "",
+                    "has_key": bool(collector.api_key) if collector and hasattr(collector, "api_key") else False,
+                    "endpoint": collector.endpoint if collector and hasattr(collector, "endpoint") else ""
+                })
+        
+        # Sort logs by timestamp (most recent first)
+        all_logs.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
         
         # Format logs with readable timestamps
         from datetime import datetime
         formatted_logs = []
-        for log in logs:
+        for log in all_logs:
             formatted_log = log.copy()
             if "timestamp" in formatted_log:
                 formatted_log["timestamp_readable"] = datetime.fromtimestamp(formatted_log["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
@@ -400,65 +653,125 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
         
         return jsonify({
             "collector": "arm",
-            "api_url": arm_collector.api_url if hasattr(arm_collector, "api_url") else "",
-            "has_key": bool(arm_collector.api_key) if hasattr(arm_collector, "api_key") else False,
-            "endpoint": arm_collector.endpoint if hasattr(arm_collector, "endpoint") else "",
+            "arm_slides": arm_slides_info,
+            "api_url": api_url,
+            "has_key": has_key,
+            "endpoint": endpoint,
             "logs": formatted_logs,
-            "log_count": len(formatted_logs)
+            "log_count": len(formatted_logs),
+            "total_slides": len(arm_slides_info)
         })
     
     @app.route("/api/debug/arm/test", methods=["POST"])
     def test_arm_connection():
-        """Test ARM API connection by making a request."""
-        if collectors is None or "arm" not in collectors:
-            return jsonify({"error": "ARM collector not available"}), 500
+        """Test ARM API connection by forcing a collection on the first ARM slide."""
+        from config import get_slides_config
+        from backend.slides import SlideTypeRegistry
         
-        arm_collector = collectors["arm"]
+        config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Find first arm_rip_progress slide for testing
+        arm_slide = None
+        for slide in slides:
+            if slide.get("type") == "arm_rip_progress":
+                arm_slide = slide
+                break
+        
+        if not arm_slide:
+            return jsonify({"error": "No ARM slides configured"}), 404
+        
+        slide_type = SlideTypeRegistry.get("arm_rip_progress")
+        if not slide_type:
+            return jsonify({"error": "ARM slide type not available"}), 500
+        
+        # Create collector for testing
+        collector = None
+        try:
+            config_data = {
+                "service_config": arm_slide.get("service_config", {}),
+                "api_config": arm_slide.get("api_config")
+            }
+            collector = slide_type.create_collector(config_data)
+        except Exception as e:
+            print(f"Error creating ARM collector for test: {e}")
+            return jsonify({"error": f"Failed to create collector: {str(e)}"}), 500
+        
+        if not collector:
+            return jsonify({"error": "ARM collector could not be created"}), 500
         
         # Force a fetch (bypasses cache)
-        if hasattr(arm_collector, "_fetch_data"):
-            # Clear cache first to force fresh fetch
-            if hasattr(arm_collector, "clear_cache"):
-                arm_collector.clear_cache()
-            
-            result = arm_collector._fetch_data()
-            logs = arm_collector.get_debug_logs() if hasattr(arm_collector, "get_debug_logs") else []
-            
-            return jsonify({
-                "success": result is not None,
-                "result": result,
-                "result_type": type(result).__name__ if result else None,
-                "result_keys": list(result.keys()) if isinstance(result, dict) else None,
-                "has_active_rip": arm_collector.has_active_rip() if hasattr(arm_collector, "has_active_rip") else None,
-                "latest_log": logs[-1] if logs else None
-            })
-        else:
-            return jsonify({"error": "Cannot test connection"}), 500
+        result = None
+        logs = []
+        if hasattr(collector, "_fetch_data"):
+            if hasattr(collector, "clear_cache"):
+                collector.clear_cache()
+            result = collector._fetch_data()
+            if hasattr(collector, "get_debug_logs"):
+                logs = collector.get_debug_logs()
+        
+        return jsonify({
+            "success": result is not None,
+            "result": result,
+            "result_type": type(result).__name__ if result else None,
+            "result_keys": list(result.keys()) if isinstance(result, dict) else None,
+            "has_active_rip": collector.has_active_rip() if hasattr(collector, "has_active_rip") else None,
+            "latest_log": logs[-1] if logs else None
+        })
     
     @app.route("/api/debug/arm/data", methods=["GET"])
     def get_arm_data():
-        """Get current ARM data (bypassing cache)."""
-        if collectors is None or "arm" not in collectors:
-            return jsonify({"error": "ARM collector not available"}), 500
+        """Get current ARM data (bypassing cache) from the first ARM slide."""
+        from config import get_slides_config
+        from backend.slides import SlideTypeRegistry
         
-        arm_collector = collectors["arm"]
+        config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Find first arm_rip_progress slide
+        arm_slide = None
+        for slide in slides:
+            if slide.get("type") == "arm_rip_progress":
+                arm_slide = slide
+                break
+        
+        if not arm_slide:
+            return jsonify({"error": "No ARM slides configured"}), 404
+        
+        slide_type = SlideTypeRegistry.get("arm_rip_progress")
+        if not slide_type:
+            return jsonify({"error": "ARM slide type not available"}), 500
+        
+        # Create collector
+        collector = None
+        try:
+            config_data = {
+                "service_config": arm_slide.get("service_config", {}),
+                "api_config": arm_slide.get("api_config")
+            }
+            collector = slide_type.create_collector(config_data)
+        except Exception as e:
+            return jsonify({"error": f"Failed to create collector: {str(e)}"}), 500
+        
+        if not collector:
+            return jsonify({"error": "ARM collector could not be created"}), 500
         
         # Get cached data first
         cached_data = None
-        if hasattr(arm_collector, "get_data"):
-            cached_data = arm_collector.get_data()
+        if hasattr(collector, "get_data"):
+            cached_data = collector.get_data()
         
         # Force fresh fetch by clearing cache
         fresh_data = None
-        if hasattr(arm_collector, "clear_cache"):
-            arm_collector.clear_cache()
-        if hasattr(arm_collector, "_fetch_data"):
-            fresh_data = arm_collector._fetch_data()
+        if hasattr(collector, "clear_cache"):
+            collector.clear_cache()
+        if hasattr(collector, "_fetch_data"):
+            fresh_data = collector._fetch_data()
         
         # Check what get_data returns after fresh fetch
         final_data = None
-        if hasattr(arm_collector, "get_data"):
-            final_data = arm_collector.get_data()
+        if hasattr(collector, "get_data"):
+            final_data = collector.get_data()
         
         return jsonify({
             "cached_data_before": cached_data,
@@ -467,8 +780,164 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             "fresh_data_type": type(fresh_data).__name__ if fresh_data is not None else "None",
             "get_data_after_fresh": final_data,
             "final_data_type": type(final_data).__name__ if final_data is not None else "None",
-            "has_active_rip": arm_collector.has_active_rip() if hasattr(arm_collector, "has_active_rip") else None,
+            "has_active_rip": collector.has_active_rip() if hasattr(collector, "has_active_rip") else None,
         })
+    
+    @app.route("/api/debug/system", methods=["GET"])
+    def get_system_debug():
+        """Get System collector debug logs from all system slides."""
+        from config import get_slides_config
+        from backend.slides import SlideTypeRegistry
+        
+        config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Try to get collectors from running app instance first
+        app_instance = app.config.get('APP_INSTANCE')
+        stored_collectors = {}
+        if app_instance and hasattr(app_instance, 'slide_collectors'):
+            with app_instance.slide_collectors_lock:
+                stored_collectors = app_instance.slide_collectors.copy()
+        
+        # Find all system_stats slides and aggregate their debug logs
+        all_logs = []
+        system_slides_info = []
+        
+        for slide in slides:
+            if slide.get("type") == "system_stats":
+                slide_id = slide.get("id")
+                slide_title = slide.get("title", f"Slide {slide_id}")
+                
+                collector = None
+                logs = []
+                
+                # Try to get stored collector first (has historical logs from display loop)
+                if slide_id in stored_collectors:
+                    collector = stored_collectors[slide_id]
+                    if hasattr(collector, "get_debug_logs"):
+                        logs = collector.get_debug_logs()
+                        print(f"Found stored collector for slide {slide_id} with {len(logs)} log entries")
+                
+                # Create collector if we don't have one yet
+                slide_type = SlideTypeRegistry.get("system_stats")
+                if not collector and slide_type:
+                    try:
+                        config_data = {
+                            "service_config": slide.get("service_config", {}),
+                            "api_config": slide.get("api_config")
+                        }
+                        collector = slide_type.create_collector(config_data)
+                        print(f"Created new collector for slide {slide_id}")
+                    except Exception as e:
+                        print(f"Error creating collector for slide {slide_id}: {e}")
+                        collector = None
+                
+                # Always force a collection to ensure we have at least one log entry
+                # This is needed because stored collectors might not have logs if display loop hasn't run
+                if collector and hasattr(collector, "_fetch_data"):
+                    try:
+                        print(f"Forcing collection for slide {slide_id} to ensure debug logs exist")
+                        collector._fetch_data()  # This will populate debug logs via _log_debug
+                        
+                        # Get logs after forced collection
+                        if hasattr(collector, "get_debug_logs"):
+                            logs = collector.get_debug_logs()
+                            print(f"After forced collection, slide {slide_id} has {len(logs)} log entries")
+                    except Exception as e:
+                        print(f"Error forcing collection for debug logs: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                # Store collector in app_instance for future debug log access
+                if collector and app_instance and hasattr(app_instance, 'slide_collectors'):
+                    with app_instance.slide_collectors_lock:
+                        app_instance.slide_collectors[slide_id] = collector
+                        print(f"Stored collector for slide {slide_id} in app_instance")
+                
+                # Add slide info to each log entry
+                if logs:
+                    for log in logs:
+                        log_with_slide = log.copy()
+                        log_with_slide["slide_id"] = slide_id
+                        log_with_slide["slide_title"] = slide_title
+                        all_logs.append(log_with_slide)
+                
+                system_slides_info.append({
+                    "slide_id": slide_id,
+                    "slide_title": slide_title,
+                    "log_count": len(logs),
+                    "nas_mounts": slide.get("service_config", {}).get("nas_mounts", ""),
+                    "poll_interval": slide.get("service_config", {}).get("poll_interval", 5),
+                    "has_stored_collector": slide_id in stored_collectors
+                })
+        
+        # Sort logs by timestamp (most recent first)
+        all_logs.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+        
+        # Format logs with readable timestamps
+        from datetime import datetime
+        formatted_logs = []
+        for log in all_logs:
+            formatted_log = log.copy()
+            if "timestamp" in formatted_log:
+                formatted_log["timestamp_readable"] = datetime.fromtimestamp(formatted_log["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
+            formatted_logs.append(formatted_log)
+        
+        return jsonify({
+            "collector": "system",
+            "system_slides": system_slides_info,
+            "logs": formatted_logs,
+            "log_count": len(formatted_logs),
+            "total_slides": len(system_slides_info)
+        })
+    
+    @app.route("/api/debug/system/test", methods=["POST"])
+    def test_system_collection():
+        """Test system stats collection by forcing a fresh fetch."""
+        from config import get_slides_config
+        from backend.slides import SlideTypeRegistry
+        
+        config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Find first system_stats slide for testing
+        system_slide = None
+        for slide in slides:
+            if slide.get("type") == "system_stats":
+                system_slide = slide
+                break
+        
+        if not system_slide:
+            return jsonify({"error": "No system stats slides configured"}), 404
+        
+        slide_type = SlideTypeRegistry.get("system_stats")
+        if not slide_type:
+            return jsonify({"error": "System slide type not found"}), 500
+        
+        try:
+            config_data = {
+                "service_config": system_slide.get("service_config", {}),
+                "api_config": system_slide.get("api_config")
+            }
+            collector = slide_type.create_collector(config_data)
+            
+            if not collector:
+                return jsonify({"error": "Failed to create collector"}), 500
+            
+            # Force a fresh fetch
+            result = collector._fetch_data()
+            logs = collector.get_debug_logs() if hasattr(collector, "get_debug_logs") else []
+            
+            return jsonify({
+                "success": result is not None,
+                "result": result,
+                "result_type": type(result).__name__ if result else None,
+                "result_keys": list(result.keys()) if isinstance(result, dict) else None,
+                "latest_log": logs[-1] if logs else None,
+                "log_count": len(logs)
+            })
+        except Exception as e:
+            return jsonify({"error": f"Error testing system collection: {str(e)}"}), 500
     
     @app.route("/api/upload/image", methods=["POST"])
     def upload_image():

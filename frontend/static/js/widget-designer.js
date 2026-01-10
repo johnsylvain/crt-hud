@@ -568,8 +568,17 @@ function setupCollapsibleAPISection() {
     
     if (!apiHeader || !apiContent) return;
     
+    // Initialize as expanded by default
+    if (apiHeader.classList.contains('expanded')) {
+        apiContent.style.display = 'block';
+        const icon = apiHeader.querySelector('.collapse-icon');
+        if (icon) {
+            icon.textContent = '▼';
+        }
+    }
+    
     apiHeader.addEventListener('click', () => {
-        const isExpanded = apiContent.style.display !== 'none';
+        const isExpanded = apiHeader.classList.contains('expanded');
         apiContent.style.display = isExpanded ? 'none' : 'block';
         apiHeader.classList.toggle('expanded', !isExpanded);
         

@@ -32,6 +32,8 @@ class HomelabHUD:
         self.collectors = {}
         self.generic_collectors = {}  # Store generic collectors keyed by slide ID
         self.generic_collectors_lock = threading.Lock()  # Thread-safe access
+        self.slide_collectors = {}  # Store collectors for each slide (for debug logs)
+        self.slide_collectors_lock = threading.Lock()  # Thread-safe access
         self.renderer = SlideRenderer()
         self.video_output = None
         self.flask_app = None
@@ -302,6 +304,13 @@ class HomelabHUD:
                                 temp_data = temp_collector.get_data()
                         except Exception as e:
                             print(f"Error fetching temp data for conditional check: {e}")
+                        
+                        # Store collector after fetching data (logs are populated now)
+                        slide_id_temp = slide.get("id")
+                        if slide_id_temp and hasattr(temp_collector, "get_debug_logs") and temp_data is not None:
+                            # Only store if we successfully got data (logs are populated)
+                            with self.slide_collectors_lock:
+                                self.slide_collectors[slide_id_temp] = temp_collector
                     
                     # Check if should display
                     if not slide_type_obj.should_display(temp_collector, temp_data, slide):
@@ -326,7 +335,7 @@ class HomelabHUD:
                         except Exception as e:
                             print(f"Error creating collector for slide {slide.get('id')}: {e}")
                     
-                    # Get initial data
+                    # Get initial data (this will populate debug logs)
                     data = temp_data if temp_data is not None else None
                     if data is None and collector:
                         try:
@@ -334,10 +343,16 @@ class HomelabHUD:
                                 city = slide.get("city")
                                 data = collector.get_data_for_city(city) if city else collector.get_data()
                             else:
-                                data = collector.get_data()
+                                data = collector.get_data()  # This calls _fetch_data() which populates debug logs
                         except Exception as e:
                             print(f"Error fetching initial data for slide {slide.get('id')}: {e}")
                             data = None
+                    
+                    # Store collector AFTER data fetch (logs are populated now)
+                    slide_id = slide.get("id")
+                    if collector and slide_id and hasattr(collector, "get_debug_logs"):
+                        with self.slide_collectors_lock:
+                            self.slide_collectors[slide_id] = collector
                     
                     # Render using slide type
                     try:
@@ -405,6 +420,12 @@ class HomelabHUD:
                                 except Exception as e:
                                     print(f"Error refreshing data for slide {slide.get('id')}: {e}")
                                     data = None
+                                
+                                # Update stored collector for debug logs
+                                slide_id = slide.get("id")
+                                if slide_id and hasattr(collector, "get_debug_logs"):
+                                    with self.slide_collectors_lock:
+                                        self.slide_collectors[slide_id] = collector
                             else:
                                 data = None
                             
