@@ -2,6 +2,8 @@
 
 A Tidbyt-like application for Raspberry Pi that displays real-time stats (ARM, Pi-hole, Plex, System) on a 5-inch black and white CRT via composite output. Features a Fallout-themed minimal UI at 320x280 resolution with a web-based slide editor.
 
+![STATUSBOARD Screenshot](assets/screenshot.png)
+
 ## Features
 
 - **Real-time Stats Display**: ARM rip progress, Pi-hole stats, Plex now playing, system stats (CPU, Memory, NAS storage)
