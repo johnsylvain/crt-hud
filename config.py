@@ -82,7 +82,7 @@ def get_default_api_config() -> Dict[str, Any]:
     return {
         "arm": {
             "enabled": True,
-            "api_url": "http://192.168.68.83:8080",
+            "api_url": "http://localhost:8080",
             "api_key": "",
             "poll_interval": 30,
             "conditional": True,

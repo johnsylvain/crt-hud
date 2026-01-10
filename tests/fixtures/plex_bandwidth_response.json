@@ -12,14 +12,14 @@
       "id": 10,
       "name": "Chrome",
       "platform": "Chrome",
-      "clientIdentifier": "7igovzg51u3355chmjfvh4zp",
+      "clientIdentifier": "example-client-identifier-12345",
       "createdAt": 1762632257
     },
     {
       "id": 20,
-      "name": "John's Mac mini",
+      "name": "Example Device",
       "platform": "macOS",
-      "clientIdentifier": "904cbf3c-f9bf-4404-8f54-faebd308b619",
+      "clientIdentifier": "example-machine-identifier-12345",
       "createdAt": 1765331908
     }
   ],
@@ -27,12 +27,12 @@
     {
       "id": 1,
       "key": "/accounts/1",
-      "name": "jsylva",
+      "name": "exampleuser",
       "defaultAudioLanguage": "en",
       "autoSelectAudio": false,
       "defaultSubtitleLanguage": "en",
       "subtitleMode": 0,
-      "thumb": "https://plex.tv/users/a06bf2d022fd0f43/avatar?c=1767979144"
+      "thumb": "https://plex.tv/users/example123456789/avatar?c=1767979144"
     }
   ],
   "StatisticsBandwidth": [

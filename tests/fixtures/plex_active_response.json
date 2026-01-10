@@ -50,7 +50,7 @@
             {
               "container": "flac",
               "duration": 312667,
-              "file": "/data/media/Incoming/music/Luther_Vandross/Any_Love/01 - I_Wonder.flac",
+              "file": "/media/music/Artist/Album/01 - Track.flac",
               "id": "4634",
               "key": "/library/parts/4634/1767479308/file.flac",
               "size": 33624525,
@@ -83,19 +83,19 @@
       ],
       "User": {
         "id": "1",
-        "thumb": "https://plex.tv/users/a06bf2d022fd0f43/avatar?c=1767979144",
-        "title": "jsylva"
+        "thumb": "https://plex.tv/users/example123456789/avatar?c=1767979144",
+        "title": "exampleuser"
       },
       "Player": {
-        "address": "192.168.68.61",
+        "address": "192.168.1.100",
         "device": "macOS",
-        "machineIdentifier": "904cbf3c-f9bf-4404-8f54-faebd308b619",
+        "machineIdentifier": "example-machine-identifier-12345",
         "platform": "macOS",
         "platformVersion": "22.6.0",
         "product": "Plexamp",
-        "remotePublicAddress": "192.168.68.61",
+        "remotePublicAddress": "192.168.1.100",
         "state": "playing",
-        "title": "John's Mac mini",
+        "title": "Example Device",
         "version": "4.12.4",
         "local": false,
         "relayed": false,
