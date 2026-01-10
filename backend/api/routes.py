@@ -46,6 +46,14 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
     def get_slides():
         """Get all slides."""
         config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Ensure all slides have refresh_duration (backwards compatibility)
+        for slide in slides:
+            if "refresh_duration" not in slide:
+                slide["refresh_duration"] = 5
+        
+        config["slides"] = slides
         return jsonify(config)
     
     @app.route("/api/slides", methods=["POST"])
@@ -66,6 +74,7 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             "type": data.get("type", ""),
             "title": data.get("title", "Untitled"),
             "duration": data.get("duration", 10),
+            "refresh_duration": data.get("refresh_duration", 5),
             "order": data.get("order", len(slides)),
             "conditional": data.get("conditional", False),
         }
@@ -97,6 +106,11 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             if slide.get("id") == slide_id:
                 slides[i].update(data)
                 slides[i]["id"] = slide_id  # Ensure ID doesn't change
+                
+                # Ensure refresh_duration exists (backwards compatibility)
+                if "refresh_duration" not in slides[i]:
+                    slides[i]["refresh_duration"] = 5
+                
                 config["slides"] = slides
                 save_slides_config(config)
                 return jsonify(slides[i])

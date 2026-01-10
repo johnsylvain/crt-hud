@@ -176,19 +176,15 @@ class HomelabHUD:
                             self.current_slide = None
                         continue
                     
-                    # Get slide data
+                    # Get slide configuration
                     slide_type = slide.get("type", "")
                     title = slide.get("title", "")
-                    duration = slide.get("duration", 10)
+                    display_duration = slide.get("duration", 10)  # How long to display the slide
+                    refresh_duration = slide.get("refresh_duration", 5)  # How often to refresh data
                     
+                    # Initial data fetch and render
                     data = self._get_slide_data(slide_type, slide)
-                    
-                    # Render slide (pass slide config for weather city/temp_unit)
                     image = self.renderer.render(slide_type, data, title, slide)
-                    
-                    # Update current slide (thread-safe)
-                    # Create a copy of the image for API access (PIL images are not thread-safe)
-                    # Use PIL Image.copy() method
                     image_copy = image.copy()
                     
                     with self.current_slide_lock:
@@ -201,7 +197,7 @@ class HomelabHUD:
                             "timestamp": time.time()
                         }
                     
-                    # Display frame
+                    # Display initial frame
                     if self.export_frames:
                         # Export to file
                         export_dir = DATA_DIR / "preview"
@@ -216,12 +212,48 @@ class HomelabHUD:
                     
                     frame_count += 1
                     
-                    # Wait for slide duration (with updates to current slide timestamp)
+                    # Display loop: refresh data periodically while displaying for display_duration
                     sleep_interval = 0.1
                     elapsed = 0
-                    while elapsed < duration and self.running:
+                    last_refresh = 0
+                    
+                    while elapsed < display_duration and self.running:
                         time.sleep(sleep_interval)
                         elapsed += sleep_interval
+                        
+                        # Check if it's time to refresh data
+                        if elapsed - last_refresh >= refresh_duration:
+                            # Refresh data
+                            data = self._get_slide_data(slide_type, slide)
+                            
+                            # Re-render slide with new data
+                            image = self.renderer.render(slide_type, data, title, slide)
+                            image_copy = image.copy()
+                            
+                            # Update current slide (thread-safe)
+                            with self.current_slide_lock:
+                                self.current_slide = {
+                                    "slide": dict(slide),
+                                    "slide_type": slide_type,
+                                    "title": title,
+                                    "data": data,
+                                    "image": image_copy,
+                                    "timestamp": time.time()
+                                }
+                            
+                            # Display updated frame
+                            if self.export_frames:
+                                export_dir = DATA_DIR / "preview"
+                                export_dir.mkdir(exist_ok=True)
+                                filename = export_dir / f"slide_{frame_count:06d}_{slide.get('id')}.png"
+                                image.save(filename)
+                                print(f"Exported refreshed frame: {filename}")
+                            else:
+                                if not self.video_output.display_frame(image):
+                                    print("Warning: Failed to display refreshed frame")
+                            
+                            frame_count += 1
+                            last_refresh = elapsed
                         
                         # Update timestamp periodically so web UI knows slide is still active
                         if elapsed % 1.0 < sleep_interval:  # Every ~1 second

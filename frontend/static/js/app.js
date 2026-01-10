@@ -234,7 +234,8 @@ function createSlideElement(slide) {
             <div class="slide-title">${slide.title} ${badge}</div>
             <div class="slide-meta">
                 ${typeLabels[slide.type] || slide.type} | 
-                Duration: ${slide.duration}s | 
+                Display: ${slide.duration}s | 
+                Refresh: ${slide.refresh_duration || 5}s | 
                 Order: ${slide.order || 0}
             </div>
         </div>
@@ -330,6 +331,7 @@ function openSlideModal(slide = null) {
         document.getElementById('slideType').value = slideType;
         document.getElementById('slideTitle').value = slide.title;
         document.getElementById('slideDuration').value = slide.duration;
+        document.getElementById('slideRefreshDuration').value = slide.refresh_duration || 5;
         document.getElementById('slideConditional').checked = slide.conditional || false;
         document.getElementById('slideConditionType').value = slide.condition_type || 'arm_active';
         document.getElementById('conditionTypeGroup').style.display = (slide.conditional || false) ? 'block' : 'none';
@@ -365,6 +367,7 @@ async function handleSlideSubmit(e) {
         type: slideType,
         title: document.getElementById('slideTitle').value,
         duration: parseInt(document.getElementById('slideDuration').value),
+        refresh_duration: parseInt(document.getElementById('slideRefreshDuration').value),
         conditional: document.getElementById('slideConditional').checked,
     };
     

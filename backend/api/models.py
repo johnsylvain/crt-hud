@@ -10,7 +10,8 @@ class Slide:
         self.id = data.get("id")
         self.type = data.get("type")
         self.title = data.get("title", "")
-        self.duration = data.get("duration", 10)
+        self.duration = data.get("duration", 10)  # Display duration (backwards compatible)
+        self.refresh_duration = data.get("refresh_duration", 5)  # How often to refresh data
         self.order = data.get("order", 0)
         self.conditional = data.get("conditional", False)
         self.condition_type = data.get("condition_type")
@@ -22,6 +23,7 @@ class Slide:
             "type": self.type,
             "title": self.title,
             "duration": self.duration,
+            "refresh_duration": self.refresh_duration,
             "order": self.order,
             "conditional": self.conditional,
         }

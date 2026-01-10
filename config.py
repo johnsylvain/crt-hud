@@ -44,6 +44,7 @@ def get_default_slides_config() -> Dict[str, Any]:
                 "type": "pihole_summary",
                 "title": "Pi-hole Stats",
                 "duration": 10,
+                "refresh_duration": 5,
                 "order": 0,
                 "conditional": False
             },
@@ -52,6 +53,7 @@ def get_default_slides_config() -> Dict[str, Any]:
                 "type": "plex_now_playing",
                 "title": "Now Playing",
                 "duration": 15,
+                "refresh_duration": 1,
                 "order": 1,
                 "conditional": True,
                 "condition_type": "plex_active"
@@ -61,6 +63,7 @@ def get_default_slides_config() -> Dict[str, Any]:
                 "type": "arm_rip_progress",
                 "title": "ARM Rip Progress",
                 "duration": 15,
+                "refresh_duration": 2,
                 "order": 2,
                 "conditional": True,
                 "condition_type": "arm_active"
@@ -70,6 +73,7 @@ def get_default_slides_config() -> Dict[str, Any]:
                 "type": "system_stats",
                 "title": "System Stats",
                 "duration": 10,
+                "refresh_duration": 5,
                 "order": 3,
                 "conditional": False
             }
