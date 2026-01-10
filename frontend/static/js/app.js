@@ -1,4 +1,4 @@
-// Homelab HUD Admin UI JavaScript
+// StatusBoard Admin UI JavaScript
 
 const API_BASE = '/api';
 
@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadConfig();
     setupEventListeners();
     setupTabs();
+    setupCollapsibleSections();
     startCurrentSlideRefresh();
     startSlidePreviewRefresh();
 });
@@ -101,10 +102,44 @@ function setupTabs() {
                 targetContent.style.display = 'block';
             }
             
-            // Load debug logs if switching to debug tab
-            if (targetTab === 'debug') {
+            // Load content when switching to specific tabs
+            if (targetTab === 'config') {
+                loadConfig();
+            } else if (targetTab === 'debug') {
                 loadDebugLogs();
                 loadArmDebugLogs();
+            }
+        });
+    });
+}
+
+// Collapsible sections functionality
+function setupCollapsibleSections() {
+    const collapsibleHeaders = document.querySelectorAll('.collapsible-header');
+    
+    collapsibleHeaders.forEach(header => {
+        header.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const targetId = header.getAttribute('data-target');
+            if (!targetId) return;
+            
+            const content = document.getElementById(targetId);
+            if (!content) return;
+            
+            const isExpanded = header.classList.contains('expanded');
+            
+            if (isExpanded) {
+                // Collapse
+                header.classList.remove('expanded');
+                content.classList.remove('expanded');
+                content.style.display = 'none';
+            } else {
+                // Expand
+                header.classList.add('expanded');
+                content.classList.add('expanded');
+                content.style.display = 'block';
             }
         });
     });
@@ -172,7 +207,8 @@ function createSlideElement(slide) {
         'pihole_summary': 'Pi-hole Stats',
         'plex_now_playing': 'Plex Now Playing',
         'arm_rip_progress': 'ARM Rip Progress',
-        'system_stats': 'System Stats'
+        'system_stats': 'System Stats',
+        'weather': 'Weather'
     };
     
     const badge = slide.conditional ? `<span class="slide-badge badge-conditional">Conditional</span>` : '';
@@ -407,37 +443,55 @@ function createConfigSection(title, key, data) {
     const section = document.createElement('div');
     section.className = 'config-section';
     
-    section.innerHTML = `
-        <h3>${title}</h3>
-        <div class="config-row">
-            <label>Enabled:</label>
-            <input type="checkbox" id="config_${key}_enabled" ${data.enabled !== false ? 'checked' : ''}>
-        </div>
-        <div class="config-row">
-            <label>API URL:</label>
-            <input type="text" id="config_${key}_api_url" value="${data.api_url || ''}" placeholder="http://localhost:8080">
-        </div>
-        <div class="config-row">
-            <label>API Key/Token:</label>
-            <input type="text" id="config_${key}_api_key" value="${data.api_key || data.api_token || ''}" placeholder="API key or token">
-        </div>
-        <div class="config-row">
-            <label>Poll Interval (seconds):</label>
-            <input type="number" id="config_${key}_poll_interval" value="${data.poll_interval || 30}" min="1" max="300">
-        </div>
-        ${key === 'system' ? `
+    // System config has a different layout (no API fields)
+    if (key === 'system') {
+        section.innerHTML = `
+            <h3>${title}</h3>
             <div class="config-row">
-                <label>NAS Mounts (comma-separated):</label>
+                <label>Enabled:</label>
+                <input type="checkbox" id="config_${key}_enabled" ${data.enabled !== false ? 'checked' : ''}>
+            </div>
+            <div class="config-row">
+                <label>Poll Interval (seconds):</label>
+                <input type="number" id="config_${key}_poll_interval" value="${data.poll_interval || 5}" min="1" max="300">
+            </div>
+            <div class="config-row">
+                <label for="config_${key}_nas_mounts"><strong>NAS Volume Mount Points:</strong></label>
                 <input type="text" id="config_${key}_nas_mounts" value="${(data.nas_mounts || []).join(', ')}" placeholder="/mnt/nas, /media/nas">
+                <small style="display: block; color: #666; margin-top: 4px;">
+                    Enter mount point paths separated by commas (e.g., /mnt/nas, /media/storage). 
+                    The system will display used/available storage for each volume. If none are accessible, root filesystem will be shown.
+                </small>
             </div>
-        ` : ''}
-        ${key === 'arm' ? `
+        `;
+    } else {
+        // API-based configs (ARM, Pi-hole, Plex)
+        section.innerHTML = `
+            <h3>${title}</h3>
             <div class="config-row">
-                <label>Endpoint:</label>
-                <input type="text" id="config_${key}_endpoint" value="${data.endpoint || '/json?mode=joblist'}" placeholder="/json?mode=joblist">
+                <label>Enabled:</label>
+                <input type="checkbox" id="config_${key}_enabled" ${data.enabled !== false ? 'checked' : ''}>
             </div>
-        ` : ''}
-    `;
+            <div class="config-row">
+                <label>API URL:</label>
+                <input type="text" id="config_${key}_api_url" value="${data.api_url || ''}" placeholder="http://localhost:8080">
+            </div>
+            <div class="config-row">
+                <label>API Key/Token:</label>
+                <input type="text" id="config_${key}_api_key" value="${data.api_key || data.api_token || ''}" placeholder="API key or token">
+            </div>
+            <div class="config-row">
+                <label>Poll Interval (seconds):</label>
+                <input type="number" id="config_${key}_poll_interval" value="${data.poll_interval || 30}" min="1" max="300">
+            </div>
+            ${key === 'arm' ? `
+                <div class="config-row">
+                    <label>Endpoint:</label>
+                    <input type="text" id="config_${key}_endpoint" value="${data.endpoint || '/json?mode=joblist'}" placeholder="/json?mode=joblist">
+                </div>
+            ` : ''}
+        `;
+    }
     
     return section;
 }
@@ -553,7 +607,8 @@ async function updateCurrentSlide() {
                 'pihole_summary': 'Pi-hole Stats',
                 'plex_now_playing': 'Plex Now Playing',
                 'arm_rip_progress': 'ARM Rip Progress',
-                'system_stats': 'System Stats'
+                'system_stats': 'System Stats',
+                'weather': 'Weather'
             };
             
             const typeLabel = typeLabels[infoData.type] || infoData.type;

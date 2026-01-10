@@ -2,22 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Homelab HUD Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <title>StatusBoard Admin</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>HOMELAB HUD</h1>
-            <p class="subtitle">Raspberry Pi CRT Stats Display</p>
+            <h1>STATUSBOARD</h1>
+            <p class="subtitle">Homelab Stats Display</p>
         </header>
 
         <div class="main-content">
             <!-- Tab Navigation -->
             <div class="tabs">
                 <button class="tab-btn active" data-tab="main">Main</button>
+                <button class="tab-btn" data-tab="config">Config</button>
                 <button class="tab-btn" data-tab="debug">Debug</button>
             </div>
 
@@ -40,83 +42,97 @@
                     </div>
                 </section>
 
-                <!-- Slides Management and Configuration in grid -->
-                <div class="main-content-grid">
-                    <!-- Slides Management Section -->
-                    <section class="card">
-                        <h2>Slides</h2>
-                        <div class="controls">
-                            <button id="addSlideBtn" class="btn btn-primary">+ Add Slide</button>
-                        </div>
-                        <div id="slidesList" class="slides-list">
-                            <!-- Slides will be loaded here -->
-                        </div>
-                    </section>
+                <!-- Slides Management Section -->
+                <section class="card">
+                    <h2>Slides</h2>
+                    <div class="controls">
+                        <button id="addSlideBtn" class="btn btn-primary">+ Add Slide</button>
+                    </div>
+                    <div id="slidesList" class="slides-list">
+                        <!-- Slides will be loaded here -->
+                    </div>
+                </section>
+            </div>
 
-                    <!-- Configuration Section -->
-                    <section class="card">
-                        <h2>API Configuration</h2>
+            <!-- Config Tab -->
+            <div id="configTab" class="tab-content" style="display: none;">
+                <section class="card collapsible-section">
+                    <h2 class="collapsible-header" data-target="configContent">
+                        <span class="collapse-icon">▶</span>
+                        <span class="collapse-text">API Configuration</span>
+                    </h2>
+                    <div id="configContent" class="collapsible-content">
                         <div id="configForm">
                             <!-- Configuration form will be loaded here -->
                         </div>
                         <div class="controls">
                             <button id="saveConfigBtn" class="btn btn-primary">Save Configuration</button>
                         </div>
-                    </section>
-                </div>
+                    </div>
+                </section>
             </div>
 
             <!-- Debug Tab -->
             <div id="debugTab" class="tab-content" style="display: none;">
-                <section class="card">
-                    <h2>Plex API Debug</h2>
-                    <div class="controls">
-                        <button id="refreshDebugBtn" class="btn btn-primary">Refresh Logs</button>
-                        <button id="testPlexBtn" class="btn btn-secondary">Test Connection</button>
-                        <button id="fetchDataBtn" class="btn btn-secondary">Fetch Current Data</button>
-                        <button id="clearDebugBtn" class="btn btn-secondary">Clear Logs</button>
-                    </div>
-                    <div id="debugInfo" class="debug-info">
-                        <div class="debug-status">
-                            <p><strong>API URL:</strong> <span id="debugApiUrl">-</span></p>
-                            <p><strong>Token Configured:</strong> <span id="debugHasToken">-</span></p>
-                            <p><strong>Log Count:</strong> <span id="debugLogCount">0</span></p>
-                            <p><strong>Has Active Streams:</strong> <span id="debugHasStreams">-</span></p>
+                <section class="card collapsible-section">
+                    <h2 class="collapsible-header" data-target="plexDebugContent">
+                        <span class="collapse-icon">▶</span>
+                        <span class="collapse-text">Plex API Debug</span>
+                    </h2>
+                    <div id="plexDebugContent" class="collapsible-content">
+                        <div class="controls">
+                            <button id="refreshDebugBtn" class="btn btn-primary">Refresh Logs</button>
+                            <button id="testPlexBtn" class="btn btn-secondary">Test Connection</button>
+                            <button id="fetchDataBtn" class="btn btn-secondary">Fetch Current Data</button>
+                            <button id="clearDebugBtn" class="btn btn-secondary">Clear Logs</button>
                         </div>
-                    </div>
-                    <div id="debugData" class="debug-data" style="display: none;">
-                        <h3>Current Data:</h3>
-                        <pre id="debugDataContent" class="debug-data-content"></pre>
-                    </div>
-                    <div id="debugLogs" class="debug-logs">
-                        <!-- Plex debug logs will be displayed here -->
+                        <div id="debugInfo" class="debug-info">
+                            <div class="debug-status">
+                                <p><strong>API URL:</strong> <span id="debugApiUrl">-</span></p>
+                                <p><strong>Token Configured:</strong> <span id="debugHasToken">-</span></p>
+                                <p><strong>Log Count:</strong> <span id="debugLogCount">0</span></p>
+                                <p><strong>Has Active Streams:</strong> <span id="debugHasStreams">-</span></p>
+                            </div>
+                        </div>
+                        <div id="debugData" class="debug-data" style="display: none;">
+                            <h3>Current Data:</h3>
+                            <pre id="debugDataContent" class="debug-data-content"></pre>
+                        </div>
+                        <div id="debugLogs" class="debug-logs">
+                            <!-- Plex debug logs will be displayed here -->
+                        </div>
                     </div>
                 </section>
                 
                 <!-- ARM Debug Section -->
-                <section class="card">
-                    <h2>ARM API Debug</h2>
-                    <div class="controls">
-                        <button id="refreshArmDebugBtn" class="btn btn-primary">Refresh Logs</button>
-                        <button id="testArmBtn" class="btn btn-secondary">Test Connection</button>
-                        <button id="fetchArmDataBtn" class="btn btn-secondary">Fetch Current Data</button>
-                        <button id="clearArmDebugBtn" class="btn btn-secondary">Clear Logs</button>
-                    </div>
-                    <div id="armDebugInfo" class="debug-info">
-                        <div class="debug-status">
-                            <p><strong>API URL:</strong> <span id="armDebugApiUrl">-</span></p>
-                            <p><strong>API Key Configured:</strong> <span id="armDebugHasKey">-</span></p>
-                            <p><strong>Endpoint:</strong> <span id="armDebugEndpoint">-</span></p>
-                            <p><strong>Log Count:</strong> <span id="armDebugLogCount">0</span></p>
-                            <p><strong>Has Active Rip:</strong> <span id="armDebugHasRip">-</span></p>
+                <section class="card collapsible-section">
+                    <h2 class="collapsible-header" data-target="armDebugContent">
+                        <span class="collapse-icon">▶</span>
+                        <span class="collapse-text">ARM API Debug</span>
+                    </h2>
+                    <div id="armDebugContent" class="collapsible-content">
+                        <div class="controls">
+                            <button id="refreshArmDebugBtn" class="btn btn-primary">Refresh Logs</button>
+                            <button id="testArmBtn" class="btn btn-secondary">Test Connection</button>
+                            <button id="fetchArmDataBtn" class="btn btn-secondary">Fetch Current Data</button>
+                            <button id="clearArmDebugBtn" class="btn btn-secondary">Clear Logs</button>
                         </div>
-                    </div>
-                    <div id="armDebugData" class="debug-data" style="display: none;">
-                        <h3>Current Data:</h3>
-                        <pre id="armDebugDataContent" class="debug-data-content"></pre>
-                    </div>
-                    <div id="armDebugLogs" class="debug-logs">
-                        <!-- ARM debug logs will be displayed here -->
+                        <div id="armDebugInfo" class="debug-info">
+                            <div class="debug-status">
+                                <p><strong>API URL:</strong> <span id="armDebugApiUrl">-</span></p>
+                                <p><strong>API Key Configured:</strong> <span id="armDebugHasKey">-</span></p>
+                                <p><strong>Endpoint:</strong> <span id="armDebugEndpoint">-</span></p>
+                                <p><strong>Log Count:</strong> <span id="armDebugLogCount">0</span></p>
+                                <p><strong>Has Active Rip:</strong> <span id="armDebugHasRip">-</span></p>
+                            </div>
+                        </div>
+                        <div id="armDebugData" class="debug-data" style="display: none;">
+                            <h3>Current Data:</h3>
+                            <pre id="armDebugDataContent" class="debug-data-content"></pre>
+                        </div>
+                        <div id="armDebugLogs" class="debug-logs">
+                            <!-- ARM debug logs will be displayed here -->
+                        </div>
                     </div>
                 </section>
             </div>
@@ -137,6 +153,7 @@
                     <option value="plex_now_playing">Plex Now Playing</option>
                     <option value="arm_rip_progress">ARM Rip Progress</option>
                     <option value="system_stats">System Stats</option>
+                    <option value="weather">Weather</option>
                 </select>
                 
                 <label for="slideTitle">Title:</label>

@@ -17,6 +17,7 @@ from backend.collectors.arm_collector import ARMCollector
 from backend.collectors.pihole_collector import PiHoleCollector
 from backend.collectors.plex_collector import PlexCollector
 from backend.collectors.system_collector import SystemCollector
+from backend.collectors.weather_collector import WeatherCollector
 from backend.display.renderer import SlideRenderer
 from backend.display.video_output import create_video_output
 from backend.api.routes import create_app
@@ -105,6 +106,14 @@ class HomelabHUD:
                 print("System collector initialized")
             except Exception as e:
                 print(f"Failed to initialize System collector: {e}")
+        
+        # Weather Collector
+        if self.api_config.get("weather", {}).get("enabled", True):
+            try:
+                self.collectors["weather"] = WeatherCollector(self.api_config.get("weather", {}))
+                print("Weather collector initialized")
+            except Exception as e:
+                print(f"Failed to initialize Weather collector: {e}")
     
     def _should_display_slide(self, slide: dict) -> bool:
         """Check if slide should be displayed based on conditional logic."""
@@ -130,6 +139,8 @@ class HomelabHUD:
             return self.collectors["plex"].get_data()
         elif slide_type == "system_stats" and "system" in self.collectors:
             return self.collectors["system"].get_data()
+        elif slide_type == "weather" and "weather" in self.collectors:
+            return self.collectors["weather"].get_data()
         
         return None
     

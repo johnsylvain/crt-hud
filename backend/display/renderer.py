@@ -101,6 +101,8 @@ class SlideRenderer:
             y = self._render_arm(draw, data, y)
         elif slide_type == "system_stats" and data:
             y = self._render_system(draw, data, y)
+        elif slide_type == "weather" and data:
+            y = self._render_weather(draw, data, y)
         else:
             draw.text(
                 (PADDING, y),
@@ -324,6 +326,80 @@ class SlideRenderer:
             
             if len(disks) > 1:
                 draw.text((PADDING, y), f"+{len(disks) - 1} more disk(s)...", 
+                         fill=self.theme.colors["text_muted"], font=font_small)
+        
+        return y
+    
+    def _render_weather(self, draw: ImageDraw.Draw, data: Dict[str, Any], y: int) -> int:
+        """Render weather data."""
+        font_medium = self.theme.fonts["medium"]
+        font_small = self.theme.fonts["small"]
+        
+        current = data.get("current", {})
+        forecast = data.get("forecast", [])
+        
+        # Current temperature and condition
+        temp_c = current.get("temp_c", 0)
+        condition = current.get("condition", "Unknown")
+        feelslike_c = current.get("feelslike_c", temp_c)
+        
+        # Temperature line
+        draw.text((PADDING, y), f"{temp_c:.0f}°C", fill=self.theme.colors["text"], font=font_medium)
+        y += LINE_HEIGHT_MEDIUM
+        
+        # Condition
+        max_condition_width = DISPLAY_WIDTH - (PADDING * 2)
+        condition_lines = self._wrap_text(condition, font_small, max_condition_width, draw)
+        for line in condition_lines:
+            draw.text((PADDING, y), line, fill=self.theme.colors["text_secondary"], font=font_small)
+            y += LINE_HEIGHT_SMALL
+        y += 2
+        
+        # Feels like
+        if feelslike_c != temp_c:
+            draw.text((PADDING, y), f"FEELS: {feelslike_c:.0f}°C", 
+                     fill=self.theme.colors["text_secondary"], font=font_small)
+            y += LINE_HEIGHT_SMALL
+        
+        # Humidity and wind
+        humidity = current.get("humidity", 0)
+        wind_kph = current.get("wind_kph", 0)
+        draw.text((PADDING, y), f"H: {humidity}% W: {wind_kph:.0f}km/h", 
+                 fill=self.theme.colors["text_secondary"], font=font_small)
+        y += LINE_HEIGHT_SMALL + 4
+        
+        # Forecast (show up to 2 days to fit on screen)
+        if forecast:
+            for i, day in enumerate(forecast[:2]):  # Limit to 2 days to fit
+                date_str = day.get("date", "")
+                # Format date (YYYY-MM-DD -> MM/DD or just day name if available)
+                if len(date_str) >= 10:
+                    date_parts = date_str.split("-")
+                    if len(date_parts) >= 2:
+                        date_display = f"{date_parts[1]}/{date_parts[2]}"
+                    else:
+                        date_display = date_str[:5]
+                else:
+                    date_display = date_str
+                
+                maxtemp = day.get("maxtemp_c", 0)
+                mintemp = day.get("mintemp_c", 0)
+                day_condition = day.get("condition", "Unknown")
+                chance_rain = day.get("daily_chance_of_rain", 0)
+                
+                # Format: "MM/DD: H/L°C Condition [Rain%]"
+                condition_short = day_condition[:12]  # Truncate long conditions
+                forecast_line = f"{date_display}: {maxtemp:.0f}/{mintemp:.0f}°C {condition_short}"
+                if chance_rain > 0:
+                    forecast_line += f" [{chance_rain}%]"
+                
+                draw.text((PADDING, y), forecast_line, 
+                         fill=self.theme.colors["text"], font=font_small)
+                y += LINE_HEIGHT_SMALL
+            
+            # Show indicator if more forecast days exist
+            if len(forecast) > 2:
+                draw.text((PADDING, y), f"+{len(forecast) - 2} more day(s)...", 
                          fill=self.theme.colors["text_muted"], font=font_small)
         
         return y

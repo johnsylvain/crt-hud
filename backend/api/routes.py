@@ -173,6 +173,8 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             stats["plex"] = collectors["plex"].get_data()
         if "system" in collectors:
             stats["system"] = collectors["system"].get_data()
+        if "weather" in collectors:
+            stats["weather"] = collectors["weather"].get_data()
         
         return jsonify(stats)
     
@@ -417,6 +419,8 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
                         print(f"Preview: has_active_streams() = {collectors['plex'].has_active_streams()}")
             elif slide_type == "system_stats" and "system" in collectors:
                 data = collectors["system"].get_data()
+            elif slide_type == "weather" and "weather" in collectors:
+                data = collectors["weather"].get_data()
         
         # Debug: Log what we're passing to renderer
         print(f"Preview: Rendering slide {slide_id} type={slide_type}, data is None: {data is None}")
@@ -504,6 +508,8 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
                     data = collectors["plex"].get_data()
                 elif slide_type == "system_stats" and "system" in collectors:
                     data = collectors["system"].get_data()
+                elif slide_type == "weather" and "weather" in collectors:
+                    data = collectors["weather"].get_data()
             
             # Render and save
             image = renderer.render(slide_type, data, title)

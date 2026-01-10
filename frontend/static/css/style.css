@@ -17,44 +17,76 @@
     text-rendering: optimizeSpeed;
 }
 
+/* Classic Mac dithered/stippled pattern background */
 body {
     font-family: 'Chicago', 'Courier New', 'Monaco', 'Menlo', monospace;
-    background: #FFFFFF; /* Pure white background */
+    /* Dithered gray background pattern like classic Mac */
+    background-color: #C0C0C0;
+    background-image: 
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 2px,
+            rgba(128, 128, 128, 0.3) 2px,
+            rgba(128, 128, 128, 0.3) 4px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            transparent,
+            transparent 2px,
+            rgba(128, 128, 128, 0.3) 2px,
+            rgba(128, 128, 128, 0.3) 4px
+        );
+    background-size: 8px 8px;
     color: #000000; /* Pure black text */
-    line-height: 1.4;
-    padding: 8px;
-    font-size: 12px;
+    line-height: 1.6;
+    padding: 16px;
+    font-size: 13px;
     -webkit-font-smoothing: none;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeSpeed;
+    letter-spacing: 0.3px;
+    min-height: 100vh;
 }
 
 .container {
     max-width: 1200px;
     margin: 0 auto;
     background: #FFFFFF;
+    width: 100%;
+    overflow-x: hidden; /* Prevent horizontal scroll */
 }
 
 header {
     text-align: center;
     margin-bottom: 16px;
-    padding: 12px;
+    padding: 12px 16px;
     border: 2px outset #808080; /* 3D border */
     background: #C0C0C0;
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 2px,
+            rgba(255, 255, 255, 0.2) 2px,
+            rgba(255, 255, 255, 0.2) 4px
+        );
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
 }
 
 header h1 {
-    font-size: 18px;
+    font-size: 20px;
     color: #000000;
     font-weight: bold;
-    margin-bottom: 4px;
-    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    letter-spacing: 0.8px;
 }
 
 .subtitle {
     color: #000000;
-    font-size: 11px;
-    font-weight: normal;
+    font-size: 13px;
+    font-weight: 500; /* A little thicker for better readability */
+    letter-spacing: 0.2px;
 }
 
 .main-content {
@@ -69,23 +101,160 @@ header h1 {
     gap: 12px;
 }
 
-/* Classic Mac window style - 3D borders */
+/* Classic Mac window style - 3D borders with patterned title bar */
 .card {
     background: #FFFFFF;
     border: 2px outset #808080; /* 3D raised border */
-    padding: 8px;
+    padding: 0;
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.2);
     /* No border-radius for classic Mac look */
 }
 
 .card h2 {
     color: #000000;
-    margin-bottom: 12px;
-    font-size: 13px;
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 15px;
     font-weight: bold;
-    padding: 4px 8px;
-    background: #C0C0C0;
-    border: 1px inset #808080; /* Title bar inset */
-    margin: -4px -4px 8px -4px;
+    /* Classic Mac title bar with diagonal pattern */
+    background-color: #C0C0C0;
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 0, 0, 0.1) 1px,
+            rgba(0, 0, 0, 0.1) 2px
+        ),
+        repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 1px,
+            rgba(255, 255, 255, 0.3) 1px,
+            rgba(255, 255, 255, 0.3) 2px
+        );
+    background-size: 4px 4px;
+    border-bottom: 1px solid #808080;
+    letter-spacing: 0.5px;
+    text-align: left;
+}
+
+/* Collapsible sections - Classic Mac Plus style */
+.collapsible-section {
+    margin-bottom: 12px;
+}
+
+.collapsible-header {
+    color: #000000;
+    margin: 0;
+    padding: 8px 12px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /* Classic Mac title bar with diagonal pattern */
+    background-color: #C0C0C0;
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 0, 0, 0.1) 1px,
+            rgba(0, 0, 0, 0.1) 2px
+        ),
+        repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 1px,
+            rgba(255, 255, 255, 0.3) 1px,
+            rgba(255, 255, 255, 0.3) 2px
+        );
+    background-size: 4px 4px;
+    border-bottom: 1px solid #808080;
+    letter-spacing: 0.5px;
+    text-align: left;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+.collapsible-header:hover {
+    background-color: #D0D0D0;
+}
+
+.collapsible-header:active {
+    background-color: #B0B0B0;
+    padding: 9px 11px 7px 13px; /* Pressed effect */
+}
+
+.collapsible-header.expanded {
+    border-bottom: 1px solid #808080;
+}
+
+.collapse-icon {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    font-size: 10px;
+    line-height: 12px;
+    text-align: center;
+    color: #000000;
+    font-family: monospace;
+    transition: transform 0.1s ease;
+    flex-shrink: 0;
+}
+
+.collapsible-header.expanded .collapse-icon {
+    transform: rotate(90deg);
+}
+
+.collapse-text {
+    flex: 1;
+}
+
+.collapsible-content {
+    padding: 0;
+    background: #FFFFFF;
+    border-top: none;
+    display: none;
+    overflow: hidden;
+}
+
+.collapsible-content.expanded {
+    display: block;
+}
+
+/* Content inside collapsible should have padding */
+.collapsible-content {
+    padding: 12px;
+    background: #FFFFFF;
+}
+
+/* Ensure proper styling when collapsible content contains cards */
+.collapsible-content .debug-info,
+.collapsible-content .debug-data,
+.collapsible-content .debug-logs,
+.collapsible-content .controls {
+    margin-bottom: 12px;
+}
+
+.collapsible-content .controls:last-child {
+    margin-bottom: 0;
+}
+
+/* Config form styling */
+.collapsible-content #configForm {
+    margin-bottom: 12px;
+}
+
+/* Card content area */
+.card > div,
+.card > section {
+    padding: 12px;
+    background: #FFFFFF;
 }
 
 .current-slide-card {
@@ -93,44 +262,113 @@ header h1 {
 }
 
 .controls {
-    margin-bottom: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
-/* Classic Mac buttons - 3D effect */
+/* Classic Mac buttons - 3D effect with pattern */
 .btn {
-    padding: 4px 12px;
+    padding: 6px 16px;
     border: 2px outset #808080; /* Raised button */
-    background: #C0C0C0;
+    background-color: #C0C0C0;
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(255, 255, 255, 0.3) 1px,
+            rgba(255, 255, 255, 0.3) 2px
+        ),
+        repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 0, 0, 0.1) 1px,
+            rgba(0, 0, 0, 0.1) 2px
+        );
+    background-size: 4px 4px;
     color: #000000;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: normal;
     font-family: inherit;
-    min-width: 70px;
-    height: 22px;
-    line-height: 14px;
+    min-width: 80px;
+    height: 26px;
+    line-height: 16px;
+    letter-spacing: 0.3px;
+    box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.2);
     /* No border-radius */
     /* No transitions - instant changes */
 }
 
-.btn:active {
-    border: 2px inset #808080; /* Pressed button */
-    background: #808080;
-    padding: 6px 10px 2px 14px; /* Shift text to simulate press */
+.btn:hover {
+    background-color: #D0D0D0;
 }
 
+.btn:active {
+    border: 2px inset #808080; /* Pressed button */
+    background-color: #808080;
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 0, 0, 0.2) 1px,
+            rgba(0, 0, 0, 0.2) 2px
+        );
+    background-size: 4px 4px;
+    padding: 8px 14px 4px 18px; /* Shift text to simulate press */
+    box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Primary buttons use default button style */
 .btn-primary {
-    /* Primary buttons same style */
+    background-color: #C0C0C0;
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(255, 255, 255, 0.3) 1px,
+            rgba(255, 255, 255, 0.3) 2px
+        ),
+        repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 0, 0, 0.1) 1px,
+            rgba(0, 0, 0, 0.1) 2px
+        );
+    background-size: 4px 4px;
 }
 
 .btn-secondary {
-    background: #FFFFFF;
-    border: 1px solid #000000;
+    background-color: #FFFFFF;
+    background-image: none;
+    border: 2px outset #808080;
+    box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.2);
+}
+
+.btn-secondary:hover {
+    background-color: #F5F5F5;
 }
 
 .btn-secondary:active {
-    border: 1px inset #000000;
-    background: #E0E0E0;
+    border: 2px inset #808080;
+    background-color: #E0E0E0;
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 0, 0, 0.1) 1px,
+            rgba(0, 0, 0, 0.1) 2px
+        );
+    background-size: 4px 4px;
+    padding: 8px 14px 4px 18px;
+    box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.3);
 }
 
 .btn-danger {
@@ -144,38 +382,62 @@ header h1 {
 }
 
 .btn-small {
-    padding: 2px 8px;
-    font-size: 11px;
-    min-width: 50px;
-    height: 18px;
-    line-height: 14px;
+    padding: 4px 10px;
+    font-size: 12px;
+    min-width: 60px;
+    height: 22px;
+    line-height: 16px;
+    letter-spacing: 0.2px;
 }
 
 /* Slides List */
+/* Classic Mac list view container */
 .slides-list {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0;
+    background: #FFFFFF;
+    border: 2px inset #808080;
+    padding: 2px;
 }
 
+/* Classic Mac list view item styling */
 .slide-item {
     background: #FFFFFF;
-    border: 1px solid #000000;
-    padding: 6px 8px;
+    border: 1px solid #808080;
+    padding: 8px 10px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     cursor: move;
     gap: 12px;
+    margin-bottom: 2px;
+    min-height: 44px;
+}
+
+.slide-item:first-child {
+    border-top: 1px solid #808080;
 }
 
 .slide-item:hover {
-    background: #F0F0F0;
+    background: #E8E8E8;
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 0, 0, 0.05) 1px,
+            rgba(0, 0, 0, 0.05) 2px
+        );
+    background-size: 4px 4px;
 }
 
+.slide-item:active,
 .slide-item.dragging {
-    opacity: 0.7;
-    border: 2px dashed #000000;
+    background: #D0D0D0;
+    border: 1px inset #808080;
+    padding: 9px 9px 7px 11px; /* Shift for pressed effect */
+    opacity: 0.9;
 }
 
 .slide-preview {
@@ -189,7 +451,6 @@ header h1 {
     justify-content: center;
     overflow: hidden;
     cursor: pointer;
-    transition: border-color 0.1s;
 }
 
 .slide-preview:hover {
@@ -219,23 +480,29 @@ header h1 {
 .slide-title {
     font-weight: bold;
     color: #000000;
-    margin-bottom: 2px;
-    font-size: 12px;
+    margin-bottom: 4px;
+    font-size: 14px;
+    letter-spacing: 0.2px;
 }
 
 .slide-meta {
-    font-size: 10px;
+    font-size: 12px;
     color: #000000;
+    line-height: 1.5;
+    letter-spacing: 0.1px;
+    font-weight: 500; /* A little thicker for better readability */
 }
 
 .slide-badge {
     display: inline-block;
-    padding: 1px 4px;
+    padding: 3px 7px;
     border: 1px solid #000000;
     background: #FFFFFF;
-    font-size: 9px;
-    margin-left: 6px;
+    font-size: 12px;
+    margin-left: 8px;
     font-weight: bold;
+    letter-spacing: 0.2px;
+    line-height: 1.4;
 }
 
 .badge-conditional {
@@ -262,41 +529,69 @@ header h1 {
 
 .modal-content {
     background-color: #C0C0C0;
-    margin: 10% auto;
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(255, 255, 255, 0.2) 1px,
+            rgba(255, 255, 255, 0.2) 2px
+        ),
+        repeating-linear-gradient(
+            -45deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 0, 0, 0.05) 1px,
+            rgba(0, 0, 0, 0.05) 2px
+        );
+    background-size: 4px 4px;
+    margin: 5% auto;
     padding: 0;
     border: 2px outset #808080;
     width: 90%;
-    max-width: 500px;
+    max-width: 600px;
     position: relative;
     box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
 }
 
 .modal-content h2 {
     margin: 0;
-    padding: 6px 12px;
-    background: #000080; /* Classic Mac blue title bar */
-    color: #FFFFFF;
-    font-size: 13px;
+    padding: 8px 16px;
+    background-color: #808080; /* Classic Mac gray title bar */
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(0, 0, 0, 0.2) 1px,
+            rgba(0, 0, 0, 0.2) 2px
+        );
+    background-size: 4px 4px;
+    color: #000000;
+    font-size: 15px;
     font-weight: bold;
     border-bottom: 1px solid #000000;
+    border-top: 1px solid #FFFFFF;
+    letter-spacing: 0.5px;
+    text-align: left;
 }
 
 .close {
-    color: #FFFFFF;
     float: right;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: bold;
     cursor: pointer;
     position: absolute;
-    right: 8px;
-    top: 4px;
-    line-height: 16px;
-    width: 16px;
-    height: 16px;
+    right: 10px;
+    top: 6px;
+    line-height: 18px;
+    width: 20px;
+    height: 20px;
     text-align: center;
-    border: 1px outset #808080;
+    border: 2px outset #808080;
     background: #C0C0C0;
     color: #000000;
+    padding: 0;
 }
 
 .close:hover {
@@ -311,44 +606,62 @@ header h1 {
 .modal-content form {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 12px;
-    background: #C0C0C0;
+    gap: 12px;
+    padding: 16px;
+    background: #FFFFFF;
+    border: 2px inset #808080;
+    margin: 2px;
 }
 
 .modal-content label {
     color: #000000;
-    font-weight: normal;
+    font-weight: 500; /* A little thicker for better readability */
     display: block;
-    margin-bottom: 2px;
-    font-size: 12px;
+    margin-bottom: 6px;
+    margin-top: 8px;
+    font-size: 13px;
+    letter-spacing: 0.2px;
 }
 
-/* Classic Mac input fields */
+/* Classic Mac input fields with inset borders */
 .modal-content input[type="text"],
 .modal-content input[type="number"],
 .modal-content select {
-    padding: 4px;
+    padding: 5px 8px;
     border: 2px inset #808080; /* Inset for inputs */
     background: #FFFFFF;
     color: #000000;
-    font-size: 12px;
+    font-size: 13px;
     font-family: inherit;
     width: 100%;
     height: 22px;
-    line-height: 14px;
+    line-height: 12px;
+    letter-spacing: 0.2px;
+    box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-.modal-content input[type="checkbox"] {
-    margin-right: 6px;
-    width: 13px;
-    height: 13px;
-    border: 1px solid #000000;
+.modal-content input[type="text"]:focus,
+.modal-content input[type="number"]:focus,
+.modal-content select:focus {
+    outline: 2px solid #000000;
+    outline-offset: -2px;
     background: #FFFFFF;
-    appearance: none;
-    -webkit-appearance: none;
-    cursor: pointer;
 }
+
+    .modal-content input[type="checkbox"] {
+        margin-right: 8px;
+        width: 20px;
+        height: 20px;
+        min-width: 20px;
+        min-height: 20px;
+        border: 2px solid #000000;
+        background: #FFFFFF;
+        appearance: none;
+        -webkit-appearance: none;
+        cursor: pointer;
+        touch-action: manipulation;
+        flex-shrink: 0;
+    }
 
 .modal-content input[type="checkbox"]:checked {
     background: #000000;
@@ -363,51 +676,74 @@ header h1 {
     outline-offset: -2px;
 }
 
-.modal-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 8px;
-    justify-content: flex-end;
-    padding-top: 8px;
-    border-top: 1px solid #808080;
-}
+    .modal-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+        justify-content: flex-end;
+        padding-top: 12px;
+        border-top: 1px solid #808080;
+        flex-wrap: wrap;
+    }
+    
+    /* Stack modal actions on mobile */
+    @media (max-width: 768px) {
+        .modal-actions {
+            flex-direction: column-reverse; /* Cancel button first on mobile */
+            gap: 8px;
+        }
+        
+        .modal-actions .btn {
+            width: 100%;
+            justify-content: center;
+        }
+    }
 
 /* Configuration Form */
+/* Classic Mac form sections with inset borders */
 .config-section {
     margin-bottom: 16px;
-    padding: 8px;
-    background: #F0F0F0;
-    border: 1px inset #808080;
+    padding: 12px;
+    background: #FFFFFF;
+    border: 2px inset #808080;
+    box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .config-section h3 {
     color: #000000;
-    margin-bottom: 8px;
-    font-size: 12px;
+    margin-bottom: 12px;
+    font-size: 14px;
     font-weight: bold;
+    letter-spacing: 0.3px;
 }
 
 .config-row {
     display: grid;
     grid-template-columns: 1fr 2fr;
-    gap: 8px;
-    margin-bottom: 6px;
+    gap: 12px;
+    margin-bottom: 10px;
     align-items: center;
 }
 
 .config-row label {
     color: #000000;
-    font-size: 11px;
+    font-size: 13px;
+    font-weight: 500; /* A little thicker for better readability */
+    letter-spacing: 0.2px;
+    line-height: 1.5;
 }
 
 .config-row input {
-    padding: 3px;
-    border: 1px inset #808080;
+    padding: 4px 8px;
+    border: 2px inset #808080;
     background: #FFFFFF;
     color: #000000;
-    font-size: 11px;
+    font-size: 13px;
     font-family: inherit;
-    height: 20px;
+    height: 22px;
+    line-height: 14px;
+    letter-spacing: 0.2px;
+    box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .config-row input[type="checkbox"] {
@@ -449,15 +785,19 @@ header h1 {
 }
 
 .current-slide-title {
-    font-size: 14px;
+    font-size: 16px;
     font-weight: bold;
     color: #000000;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
 }
 
 .current-slide-meta {
-    font-size: 11px;
+    font-size: 13px;
     color: #000000;
+    line-height: 1.6;
+    letter-spacing: 0.2px;
+    font-weight: 500; /* A little thicker for better readability */
 }
 
 .current-slide-image {
@@ -482,20 +822,24 @@ header h1 {
 }
 
 .current-slide-status {
-    font-size: 11px;
+    font-size: 13px;
     color: #000000;
     text-align: center;
+    letter-spacing: 0.2px;
+    line-height: 1.6;
 }
 
 .preview-loading {
     color: #000000;
     font-style: italic;
+    font-size: 13px;
 }
 
 .no-current-slide {
-    color: #808080;
+    color: #000000;
     font-style: italic;
     text-align: center;
+    font-size: 13px;
 }
 
 /* Drag and Drop */
@@ -548,27 +892,531 @@ header h1 {
     border: 1px inset #808080;
 }
 
-/* Responsive */
+/* Responsive - Mobile First */
 @media (max-width: 768px) {
-    .main-content-grid {
-        grid-template-columns: 1fr;
+    html {
+        -webkit-text-size-adjust: 100%; /* Prevent iOS text size adjustment */
+        -ms-text-size-adjust: 100%;
+    }
+    
+    body {
+        padding: 8px;
+        font-size: 13px;
+        line-height: 1.6;
+        background-size: 4px 4px; /* Smaller pattern on mobile */
+        overflow-x: hidden; /* Prevent horizontal scroll */
+        width: 100%;
+        position: relative;
+    }
+    
+    .container {
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        overflow-x: hidden;
+    }
+    
+    header {
+        padding: 10px 12px;
+        margin-bottom: 12px;
+    }
+    
+    header h1 {
+        font-size: 18px;
+        margin: 4px 0;
+    }
+    
+    header .subtitle {
+        font-size: 11px;
+    }
+    
+    .card {
+        margin-bottom: 12px;
+        padding: 0;
+    }
+    
+    .card > div,
+    .card > section {
+        padding: 10px;
+    }
+    
+    .card h2 {
+        font-size: 14px;
+        padding: 6px 10px;
+    }
+    
+    /* Touch-friendly buttons - minimum 44x44px (Apple HIG recommendation) */
+    .btn {
+        font-size: 13px;
+        padding: 10px 18px;
+        min-height: 44px;
+        min-width: 80px;
+        height: auto;
+        touch-action: manipulation; /* Prevent double-tap zoom */
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+        -webkit-touch-callout: none; /* Disable iOS callout */
+        user-select: none; /* Prevent text selection on buttons */
+    }
+    
+    .btn:active {
+        padding: 11px 17px 9px 19px;
+    }
+    
+    .btn-small {
+        min-height: 36px;
+        padding: 8px 14px;
+        font-size: 12px;
+    }
+    
+    /* Mobile-friendly tabs */
+    .tabs {
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 4px;
+        margin-bottom: 10px;
+    }
+    
+    .tab-btn {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 10px 12px;
+        min-height: 44px;
+        font-size: 13px;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    }
+    
+    .tab-btn:active {
+        padding: 11px 11px 9px 13px;
+    }
+    
+    .tab-btn.active {
+        padding: 10px 12px;
+    }
+    
+    /* Mobile-friendly forms */
+    .config-section {
+        padding: 10px;
+        margin-bottom: 12px;
     }
     
     .config-row {
         grid-template-columns: 1fr;
+        gap: 8px;
+        margin-bottom: 12px;
+        align-items: flex-start;
+    }
+    
+    .config-row label {
+        font-size: 13px;
+        margin-bottom: 6px;
+        display: block;
+        width: 100%;
+    }
+    
+    .config-row input {
+        width: 100%;
+        height: 44px; /* Touch-friendly */
+        font-size: 16px; /* Prevent iOS zoom */
+        box-sizing: border-box;
+    }
+    
+    .config-row input[type="checkbox"] {
+        width: 24px; /* Larger touch target */
+        height: 24px;
+        min-width: 24px;
+        min-height: 24px;
+        margin: 0;
+        cursor: pointer;
+        touch-action: manipulation;
+    }
+    
+    .modal-content {
+        width: 95%;
+        max-width: 95%;
+        margin: 2% auto;
+    }
+    
+    .modal-content form {
+        padding: 12px;
+        gap: 12px;
+    }
+    
+    .modal-content input[type="text"],
+    .modal-content input[type="number"],
+    .modal-content select {
+        height: 44px; /* Touch-friendly input height */
+        font-size: 16px; /* Prevent zoom on iOS (16px minimum) */
+        padding: 8px 10px;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        -webkit-border-radius: 0; /* Remove iOS border radius */
+        border-radius: 0;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    /* Prevent iOS from adding styling to inputs */
+    .modal-content input[type="text"]:focus,
+    .modal-content input[type="number"]:focus {
+        -webkit-appearance: none;
+        appearance: none;
+    }
+    
+    .modal-content select {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23000000' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        background-size: 12px;
+        padding-right: 28px;
+    }
+    
+    /* Mobile-friendly slide list */
+    .slides-list {
+        gap: 0;
+        width: 100%;
+        overflow-x: hidden;
+    }
+    
+    .slide-item {
+        padding: 12px 10px;
+        min-height: 60px;
+        flex-wrap: wrap;
+        gap: 8px;
+        touch-action: manipulation;
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+        -webkit-touch-callout: none;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .slide-info {
+        flex: 1 1 100%;
+        min-width: 0;
+        overflow: hidden;
+    }
+    
+    .slide-title {
+        font-size: 13px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    
+    .slide-meta {
+        font-size: 11px;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    
+    .slide-preview {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        min-height: 120px;
+        margin-bottom: 8px;
+    }
+    
+    /* Make drag handle larger on mobile */
+    .drag-handle {
+        min-width: 44px;
+        min-height: 44px;
+        touch-action: none;
+        cursor: grab;
+        -webkit-user-select: none;
+        user-select: none;
+    }
+    
+    .drag-handle:active {
+        cursor: grabbing;
+    }
+    
+    .slide-item-controls {
+        flex: 1 1 100%;
+        margin-top: 8px;
+        gap: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        width: 100%;
+    }
+    
+    .slide-item-controls .btn {
+        flex: 1 1 auto;
+        min-width: 80px;
+        touch-action: manipulation;
+    }
+    
+    /* Mobile-friendly preview images */
+    .slide-preview-image-container {
+        width: 100%;
+        max-width: 100%;
+        margin-bottom: 8px;
+        overflow: hidden;
+    }
+    
+    .slide-preview-image {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        display: block;
+        touch-action: manipulation;
+    }
+    
+    /* Make modal images responsive */
+    .modal-slide-image {
+        max-width: 100%;
+        height: auto;
+        width: 100%;
     }
     
     .current-slide-image {
         max-width: 100%;
+        width: 100%;
+        height: auto;
     }
     
-    body {
-        padding: 4px;
+    .current-slide-preview {
+        padding: 10px;
+    }
+    
+    /* Mobile-friendly debug sections */
+    .debug-info {
+        padding: 10px;
+        margin-bottom: 12px;
+    }
+    
+    .debug-status {
+        font-size: 13px;
+        line-height: 1.8;
+    }
+    
+    .debug-logs {
+        max-height: 400px;
+        padding: 10px;
+        font-size: 12px;
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    }
+    
+    .debug-log-entry {
+        padding: 10px;
+        margin-bottom: 8px;
+        font-size: 12px;
+    }
+    
+    .debug-log-header {
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+    }
+    
+    .debug-log-time,
+    .debug-log-endpoint,
+    .debug-log-method,
+    .debug-log-status {
         font-size: 11px;
+        padding: 4px 8px;
+    }
+    
+    .debug-log-section {
+        padding: 8px;
+        margin: 8px 0;
+    }
+    
+    .debug-log-section pre {
+        font-size: 11px;
+        padding: 6px;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        white-space: pre-wrap; /* Wrap long lines */
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .debug-log-section code {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        max-width: 100%;
+        display: block;
+        overflow-x: auto;
+    }
+    
+    .debug-data-content {
+        max-height: 300px;
+        font-size: 11px;
+        padding: 10px;
+        -webkit-overflow-scrolling: touch;
+        white-space: pre-wrap; /* Wrap long lines */
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        overflow-x: auto;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .debug-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    
+    .debug-controls .btn {
+        width: 100%;
+    }
+    
+    /* Stack elements on mobile */
+    .main-content-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    /* Better spacing for action buttons */
+    .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 12px;
+        width: 100%;
+    }
+    
+    .actions .btn {
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    /* Ensure all interactive elements are touch-friendly */
+    button, 
+    .btn, 
+    input[type="button"], 
+    input[type="submit"],
+    select,
+    .tab-btn,
+    .slide-item {
+        -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+        touch-action: manipulation;
+    }
+    
+    /* Prevent text selection on interactive elements during touch */
+    button,
+    .btn,
+    .tab-btn,
+    .slide-item {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+    }
+    
+    /* Allow text selection in inputs and textareas */
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+        -webkit-user-select: text;
+        -moz-user-select: text;
+        user-select: text;
+    }
+    
+    /* Hide drag handles on mobile or make them larger */
+    .drag-handle {
+        min-width: 44px;
+        min-height: 44px;
+        touch-action: none;
+    }
+}
+
+/* Very small screens (phones in portrait) */
+@media (max-width: 480px) {
+    body {
+        padding: 6px;
+        font-size: 12px;
+    }
+    
+    header {
+        padding: 8px 10px;
+    }
+    
+    header h1 {
+        font-size: 16px;
+    }
+    
+    header .subtitle {
+        font-size: 10px;
     }
     
     .card h2 {
+        font-size: 13px;
+        padding: 6px 8px;
+    }
+    
+    .btn {
         font-size: 12px;
+        padding: 10px 14px;
+    }
+    
+    .tab-btn {
+        font-size: 12px;
+        padding: 8px 10px;
+    }
+    
+    .modal-content {
+        width: 98%;
+        margin: 1% auto;
+    }
+    
+    .slide-item {
+        padding: 10px 8px;
+    }
+    
+    .config-section {
+        padding: 8px;
+    }
+}
+
+/* Landscape orientation on mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+    .debug-logs {
+        max-height: 300px;
+    }
+    
+    .debug-data-content {
+        max-height: 250px;
+    }
+    
+    .current-slide-preview {
+        display: flex;
+        flex-direction: row;
+        gap: 12px;
+    }
+    
+    .current-slide-image {
+        max-width: 50%;
+        width: auto;
+        height: auto;
+    }
+}
+
+/* Tablet sizes */
+@media (min-width: 769px) and (max-width: 1024px) {
+    body {
+        padding: 12px;
+    }
+    
+    .main-content-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .tabs {
+        gap: 4px;
+    }
+    
+    .tab-btn {
+        padding: 8px 16px;
+        min-height: 40px;
     }
 }
 
@@ -578,35 +1426,63 @@ header h1 {
     animation: none !important;
 }
 
-/* Tabs */
+/* Exception for image loading states */
+.slide-preview-img {
+    transition: none !important;
+}
+
+/* Classic Mac tabs */
 .tabs {
     display: flex;
-    gap: 4px;
+    gap: 2px;
     margin-bottom: 12px;
-    border-bottom: 2px solid #808080;
+    padding: 0;
+    background: #FFFFFF;
+    border: 2px inset #808080;
+    padding: 4px;
 }
 
 .tab-btn {
-    padding: 6px 16px;
-    background: #C0C0C0;
+    padding: 6px 18px;
+    background-color: #C0C0C0;
+    background-image: 
+        repeating-linear-gradient(
+            45deg,
+            transparent,
+            transparent 1px,
+            rgba(255, 255, 255, 0.3) 1px,
+            rgba(255, 255, 255, 0.3) 2px
+        );
+    background-size: 4px 4px;
     border: 2px outset #808080;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: bold;
     color: #000000;
+    letter-spacing: 0.3px;
+    box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.2);
 }
 
 .tab-btn:hover {
-    background: #D0D0D0;
+    background-color: #D0D0D0;
+}
+
+.tab-btn:active {
+    border: 2px inset #808080;
+    background-color: #808080;
+    padding: 8px 16px 4px 20px;
+    box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.3);
 }
 
 .tab-btn.active {
-    background: #FFFFFF;
+    background-color: #FFFFFF;
+    background-image: none;
+    border: 2px outset #FFFFFF;
     border-bottom: 2px solid #FFFFFF;
-    border-bottom-width: 2px;
-    margin-bottom: -2px;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.2);
     position: relative;
     z-index: 1;
+    padding: 6px 18px;
 }
 
 .tab-content {
@@ -619,26 +1495,35 @@ header h1 {
 
 /* Debug Styles */
 .debug-info {
-    margin-bottom: 16px;
-    padding: 8px;
+    margin-bottom: 20px;
+    padding: 12px;
     background: #F0F0F0;
-    border: 1px inset #808080;
+    border: 2px inset #808080;
 }
 
 .debug-status {
-    font-size: 11px;
+    font-size: 13px;
+    line-height: 1.8;
+    font-weight: 500; /* A little thicker for better readability */
 }
 
 .debug-status p {
-    margin: 4px 0;
+    margin: 6px 0;
+    letter-spacing: 0.2px;
+    font-weight: 500; /* A little thicker for better readability */
+}
+
+.debug-status strong {
+    font-weight: bold;
+    letter-spacing: 0.3px;
 }
 
 .debug-logs {
     max-height: 600px;
     overflow-y: auto;
-    border: 1px inset #808080;
+    border: 2px inset #808080;
     background: #FFFFFF;
-    padding: 8px;
+    padding: 12px;
 }
 
 .debug-log-list {
@@ -648,131 +1533,179 @@ header h1 {
 }
 
 .debug-log-entry {
-    border: 1px solid #808080;
-    padding: 8px;
+    border: 1px solid #000000;
+    padding: 12px;
     background: #FFFFFF;
+    margin-bottom: 8px;
 }
 
 .debug-log-entry.success {
-    border-left: 4px solid #4CAF50;
+    border-left: 4px solid #000000;
+    background: #FFFFFF;
 }
 
 .debug-log-entry.error {
-    border-left: 4px solid #F44336;
-    background: #FFEBEE;
+    border-left: 4px solid #000000;
+    background: #FFFFFF;
+    border: 2px solid #000000;
 }
 
 .debug-log-entry.warning {
-    border-left: 4px solid #FF9800;
+    border-left: 4px solid #000000;
+    background: #FFFFFF;
 }
 
 .debug-log-header {
     display: flex;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: 10px;
+    margin-bottom: 10px;
     font-weight: bold;
-    font-size: 11px;
+    font-size: 13px;
     flex-wrap: wrap;
+    line-height: 1.6;
 }
 
 .debug-log-time {
-    color: #666;
+    color: #000000;
+    letter-spacing: 0.2px;
+    font-weight: 500; /* A little thicker for better readability */
 }
 
 .debug-log-endpoint {
     background: #E0E0E0;
-    padding: 2px 6px;
-    border: 1px solid #808080;
+    padding: 4px 8px;
+    border: 1px solid #000000;
+    font-size: 12px;
+    font-weight: 500; /* A little thicker for better readability */
 }
 
 .debug-log-method {
     background: #C0C0C0;
-    padding: 2px 6px;
-    border: 1px solid #808080;
+    padding: 4px 8px;
+    border: 1px solid #000000;
+    font-size: 12px;
+    font-weight: 500; /* A little thicker for better readability */
 }
 
 .debug-log-status {
     background: #D0D0D0;
-    padding: 2px 6px;
-    border: 1px solid #808080;
+    padding: 4px 8px;
+    border: 1px solid #000000;
+    font-size: 12px;
+    font-weight: 500; /* A little thicker for better readability */
 }
 
 .debug-log-error {
-    background: #FFCCCC;
-    color: #CC0000;
-    padding: 2px 6px;
-    border: 1px solid #FF0000;
+    background: #FFFFFF;
+    color: #000000;
+    padding: 4px 8px;
+    border: 2px solid #000000;
+    font-size: 12px;
+    font-weight: bold;
 }
 
 .debug-log-details {
-    font-size: 10px;
-    margin-top: 8px;
+    font-size: 12px;
+    margin-top: 12px;
+    line-height: 1.6;
+    font-weight: 500; /* A little thicker for better readability */
 }
 
 .debug-log-section {
-    margin: 6px 0;
-    padding: 4px;
+    margin: 10px 0;
+    padding: 8px;
     background: #FAFAFA;
     border: 1px inset #E0E0E0;
 }
 
 .debug-log-section strong {
     display: block;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
     font-weight: bold;
+    font-size: 13px;
+    letter-spacing: 0.3px;
 }
 
 .debug-log-section pre {
-    margin: 4px 0;
-    padding: 4px;
+    margin: 8px 0;
+    padding: 8px;
     background: #FFFFFF;
     border: 1px inset #E0E0E0;
     overflow-x: auto;
-    font-size: 9px;
+    font-size: 12px;
     white-space: pre-wrap;
     word-wrap: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.7;
+    letter-spacing: 0.2px;
+    max-width: 100%;
+    box-sizing: border-box;
+    -webkit-overflow-scrolling: touch;
+    font-weight: 500; /* A little thicker for better readability */
 }
 
 .debug-log-section code {
     font-family: 'Courier New', monospace;
-    font-size: 10px;
+    font-size: 12px;
     background: #F0F0F0;
-    padding: 2px 4px;
+    padding: 3px 6px;
     border: 1px solid #E0E0E0;
+    letter-spacing: 0.2px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    max-width: 100%;
+    display: block;
+    overflow-x: auto;
+    font-weight: 500; /* A little thicker for better readability */
 }
 
 .debug-empty, .debug-error {
-    padding: 16px;
+    padding: 20px;
     text-align: center;
-    color: #666;
+    color: #000000;
     font-style: italic;
+    font-size: 13px;
+    line-height: 1.6;
+    letter-spacing: 0.2px;
+    font-weight: 500; /* A little thicker for better readability */
 }
 
 .debug-error {
-    color: #CC0000;
+    color: #000000;
+    background: #FFEBEE;
+    border: 2px solid #000000;
 }
 
 .debug-data {
-    margin-top: 16px;
-    padding: 8px;
+    margin-top: 20px;
+    padding: 12px;
     background: #F0F0F0;
-    border: 1px inset #808080;
+    border: 2px inset #808080;
 }
 
 .debug-data h3 {
-    margin-bottom: 8px;
-    font-size: 12px;
+    margin-bottom: 12px;
+    font-size: 14px;
     font-weight: bold;
+    letter-spacing: 0.3px;
 }
 
 .debug-data-content {
     background: #FFFFFF;
     border: 1px inset #E0E0E0;
-    padding: 8px;
-    font-size: 9px;
+    padding: 12px;
+    font-size: 12px;
     max-height: 400px;
     overflow: auto;
     white-space: pre-wrap;
     word-wrap: break-word;
+    overflow-wrap: break-word;
     font-family: 'Courier New', monospace;
+    line-height: 1.7;
+    letter-spacing: 0.2px;
+    max-width: 100%;
+    box-sizing: border-box;
+    -webkit-overflow-scrolling: touch;
+    font-weight: 500; /* A little thicker for better readability */
 }

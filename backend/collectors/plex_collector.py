@@ -265,7 +265,7 @@ class PlexCollector(BaseCollector):
             # Plex API requires token and headers as query parameters for JSON response
             params = {
                 "X-Plex-Token": self.api_token,
-                "X-Plex-Product": "Homelab HUD",
+                "X-Plex-Product": "StatusBoard",
                 "X-Plex-Version": "1.0",
                 "X-Plex-Client-Identifier": "homelab-hud-plex-collector",
                 "X-Plex-Platform": "Python",
@@ -543,7 +543,7 @@ class PlexCollector(BaseCollector):
             params = {
                 "timespan": timespan,
                 "X-Plex-Token": self.api_token,
-                "X-Plex-Product": "Homelab HUD",
+                "X-Plex-Product": "StatusBoard",
                 "X-Plex-Version": "1.0",
                 "X-Plex-Client-Identifier": "homelab-hud-plex-collector",
                 "X-Plex-Platform": "Python",
