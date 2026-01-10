@@ -89,7 +89,34 @@
                         <pre id="debugDataContent" class="debug-data-content"></pre>
                     </div>
                     <div id="debugLogs" class="debug-logs">
-                        <!-- Debug logs will be displayed here -->
+                        <!-- Plex debug logs will be displayed here -->
+                    </div>
+                </section>
+                
+                <!-- ARM Debug Section -->
+                <section class="card">
+                    <h2>ARM API Debug</h2>
+                    <div class="controls">
+                        <button id="refreshArmDebugBtn" class="btn btn-primary">Refresh Logs</button>
+                        <button id="testArmBtn" class="btn btn-secondary">Test Connection</button>
+                        <button id="fetchArmDataBtn" class="btn btn-secondary">Fetch Current Data</button>
+                        <button id="clearArmDebugBtn" class="btn btn-secondary">Clear Logs</button>
+                    </div>
+                    <div id="armDebugInfo" class="debug-info">
+                        <div class="debug-status">
+                            <p><strong>API URL:</strong> <span id="armDebugApiUrl">-</span></p>
+                            <p><strong>API Key Configured:</strong> <span id="armDebugHasKey">-</span></p>
+                            <p><strong>Endpoint:</strong> <span id="armDebugEndpoint">-</span></p>
+                            <p><strong>Log Count:</strong> <span id="armDebugLogCount">0</span></p>
+                            <p><strong>Has Active Rip:</strong> <span id="armDebugHasRip">-</span></p>
+                        </div>
+                    </div>
+                    <div id="armDebugData" class="debug-data" style="display: none;">
+                        <h3>Current Data:</h3>
+                        <pre id="armDebugDataContent" class="debug-data-content"></pre>
+                    </div>
+                    <div id="armDebugLogs" class="debug-logs">
+                        <!-- ARM debug logs will be displayed here -->
                     </div>
                 </section>
             </div>

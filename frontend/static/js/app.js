@@ -40,7 +40,7 @@ function setupEventListeners() {
     // Save config button
     document.getElementById('saveConfigBtn').addEventListener('click', saveConfig);
     
-    // Debug buttons
+    // Debug buttons - Plex
     if (document.getElementById('refreshDebugBtn')) {
         document.getElementById('refreshDebugBtn').addEventListener('click', loadDebugLogs);
     }
@@ -52,6 +52,20 @@ function setupEventListeners() {
     }
     if (document.getElementById('clearDebugBtn')) {
         document.getElementById('clearDebugBtn').addEventListener('click', clearDebugLogs);
+    }
+    
+    // Debug buttons - ARM
+    if (document.getElementById('refreshArmDebugBtn')) {
+        document.getElementById('refreshArmDebugBtn').addEventListener('click', loadArmDebugLogs);
+    }
+    if (document.getElementById('testArmBtn')) {
+        document.getElementById('testArmBtn').addEventListener('click', testArmConnection);
+    }
+    if (document.getElementById('fetchArmDataBtn')) {
+        document.getElementById('fetchArmDataBtn').addEventListener('click', fetchArmData);
+    }
+    if (document.getElementById('clearArmDebugBtn')) {
+        document.getElementById('clearArmDebugBtn').addEventListener('click', clearArmDebugLogs);
     }
     
     // Close modal on outside click
@@ -90,6 +104,7 @@ function setupTabs() {
             // Load debug logs if switching to debug tab
             if (targetTab === 'debug') {
                 loadDebugLogs();
+                loadArmDebugLogs();
             }
         });
     });
@@ -751,6 +766,167 @@ function clearDebugLogs() {
         // Note: This would require a backend endpoint to clear logs
         // For now, we'll just reload which will show current logs
         document.getElementById('debugLogs').innerHTML = '<div class="debug-empty">Debug logs cleared. New requests will populate logs.</div>';
+    }
+}
+
+// ARM Debug Functions
+async function loadArmDebugLogs() {
+    try {
+        const response = await fetch(`${API_BASE}/debug/arm`);
+        const data = await response.json();
+        
+        // Update debug info
+        document.getElementById('armDebugApiUrl').textContent = data.api_url || 'Not configured';
+        document.getElementById('armDebugHasKey').textContent = data.has_key ? 'Yes' : 'No';
+        document.getElementById('armDebugEndpoint').textContent = data.endpoint || 'Not configured';
+        document.getElementById('armDebugLogCount').textContent = data.log_count || 0;
+        
+        // Update has active rip if available
+        if (data.logs && data.logs.length > 0) {
+            const latestLog = data.logs[data.logs.length - 1];
+            if (latestLog.response_data) {
+                const success = latestLog.response_data.success || false;
+                const results = latestLog.response_data.results || {};
+                const activeJobs = Object.values(results).filter(job => job.status === 'active');
+                const hasRip = activeJobs.length > 0;
+                document.getElementById('armDebugHasRip').textContent = hasRip ? `Yes (${activeJobs.length} job(s))` : 'No';
+            } else {
+                document.getElementById('armDebugHasRip').textContent = '-';
+            }
+        } else {
+            document.getElementById('armDebugHasRip').textContent = '-';
+        }
+        
+        // Display logs
+        const logsDiv = document.getElementById('armDebugLogs');
+        if (!data.logs || data.logs.length === 0) {
+            logsDiv.innerHTML = '<div class="debug-empty">No debug logs available yet. Try making a request or click "Test Connection".</div>';
+            return;
+        }
+        
+        let html = '<div class="debug-log-list">';
+        // Show logs in reverse order (most recent first)
+        data.logs.slice().reverse().forEach((log, index) => {
+            const hasError = !!log.error;
+            const statusClass = hasError ? 'error' : (log.status_code === 200 ? 'success' : 'warning');
+            
+            html += `<div class="debug-log-entry ${statusClass}">`;
+            html += `<div class="debug-log-header">`;
+            html += `<span class="debug-log-time">${log.timestamp_readable || new Date(log.timestamp * 1000).toLocaleString()}</span>`;
+            html += `<span class="debug-log-endpoint">${log.endpoint || 'unknown'}</span>`;
+            html += `<span class="debug-log-method">${log.method || 'GET'}</span>`;
+            if (log.status_code) {
+                html += `<span class="debug-log-status">${log.status_code}</span>`;
+            }
+            if (hasError) {
+                html += `<span class="debug-log-error">ERROR</span>`;
+            }
+            html += `</div>`;
+            
+            html += `<div class="debug-log-details">`;
+            html += `<div class="debug-log-section"><strong>URL:</strong> <code>${log.url || 'N/A'}</code></div>`;
+            
+            if (log.params && Object.keys(log.params).length > 0) {
+                html += `<div class="debug-log-section"><strong>Params:</strong><pre>${JSON.stringify(log.params, null, 2)}</pre></div>`;
+            }
+            
+            if (log.error) {
+                html += `<div class="debug-log-section error"><strong>Error:</strong> <code>${log.error}</code></div>`;
+            }
+            
+            if (log.status_code) {
+                html += `<div class="debug-log-section"><strong>Status:</strong> ${log.status_code}</div>`;
+            }
+            
+            if (log.response_data) {
+                html += `<div class="debug-log-section"><strong>Response Data:</strong><pre>${JSON.stringify(log.response_data, null, 2)}</pre></div>`;
+            } else if (log.response_preview) {
+                html += `<div class="debug-log-section"><strong>Response Preview:</strong><pre>${log.response_preview}</pre></div>`;
+                if (log.response_full_length > 500) {
+                    html += `<div class="debug-log-section"><em>(Truncated, full length: ${log.response_full_length} chars)</em></div>`;
+                }
+            }
+            
+            html += `</div>`;
+            html += `</div>`;
+        });
+        html += '</div>';
+        
+        logsDiv.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading ARM debug logs:', error);
+        document.getElementById('armDebugLogs').innerHTML = `<div class="debug-error">Error loading debug logs: ${error.message}</div>`;
+    }
+}
+
+async function testArmConnection() {
+    const testBtn = document.getElementById('testArmBtn');
+    const originalText = testBtn.textContent;
+    testBtn.textContent = 'Testing...';
+    testBtn.disabled = true;
+    
+    try {
+        const response = await fetch(`${API_BASE}/debug/arm/test`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`Connection test successful!\n\nResult: ${JSON.stringify(data.result, null, 2)}`);
+        } else {
+            alert(`Connection test failed.\n\nLatest log: ${JSON.stringify(data.latest_log, null, 2)}`);
+        }
+        
+        // Refresh logs after test
+        await loadArmDebugLogs();
+    } catch (error) {
+        console.error('Error testing ARM connection:', error);
+        alert(`Error testing connection: ${error.message}`);
+    } finally {
+        testBtn.textContent = originalText;
+        testBtn.disabled = false;
+    }
+}
+
+async function fetchArmData() {
+    const fetchBtn = document.getElementById('fetchArmDataBtn');
+    const originalText = fetchBtn.textContent;
+    fetchBtn.textContent = 'Fetching...';
+    fetchBtn.disabled = true;
+    
+    try {
+        const response = await fetch(`${API_BASE}/debug/arm/data`);
+        const data = await response.json();
+        
+        // Display the data
+        const dataDiv = document.getElementById('armDebugData');
+        const dataContent = document.getElementById('armDebugDataContent');
+        
+        dataContent.textContent = JSON.stringify(data, null, 2);
+        dataDiv.style.display = 'block';
+        
+        // Scroll to data section
+        dataDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        
+        // Also update has_active_rip in status
+        if (data.has_active_rip !== undefined) {
+            document.getElementById('armDebugHasRip').textContent = data.has_active_rip ? 'Yes' : 'No';
+        }
+        
+    } catch (error) {
+        console.error('Error fetching ARM data:', error);
+        alert(`Error fetching data: ${error.message}`);
+    } finally {
+        fetchBtn.textContent = originalText;
+        fetchBtn.disabled = false;
+    }
+}
+
+function clearArmDebugLogs() {
+    if (confirm('Clear ARM debug logs? This cannot be undone.')) {
+        // Note: This would require a backend endpoint to clear logs
+        // For now, we'll just reload which will show current logs
+        document.getElementById('armDebugLogs').innerHTML = '<div class="debug-empty">Debug logs cleared. New requests will populate logs.</div>';
     }
 }
 

@@ -287,6 +287,101 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             "has_active_streams": plex_collector.has_active_streams() if hasattr(plex_collector, "has_active_streams") else None,
         })
     
+    @app.route("/api/debug/arm", methods=["GET"])
+    def get_arm_debug():
+        """Get ARM collector debug logs."""
+        if collectors is None or "arm" not in collectors:
+            return jsonify({"error": "ARM collector not available", "logs": []}), 200
+        
+        arm_collector = collectors["arm"]
+        logs = []
+        
+        if hasattr(arm_collector, "get_debug_logs"):
+            logs = arm_collector.get_debug_logs()
+        elif hasattr(arm_collector, "debug_logs"):
+            logs = arm_collector.debug_logs.copy()
+        
+        # Format logs with readable timestamps
+        from datetime import datetime
+        formatted_logs = []
+        for log in logs:
+            formatted_log = log.copy()
+            if "timestamp" in formatted_log:
+                formatted_log["timestamp_readable"] = datetime.fromtimestamp(formatted_log["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
+            formatted_logs.append(formatted_log)
+        
+        return jsonify({
+            "collector": "arm",
+            "api_url": arm_collector.api_url if hasattr(arm_collector, "api_url") else "",
+            "has_key": bool(arm_collector.api_key) if hasattr(arm_collector, "api_key") else False,
+            "endpoint": arm_collector.endpoint if hasattr(arm_collector, "endpoint") else "",
+            "logs": formatted_logs,
+            "log_count": len(formatted_logs)
+        })
+    
+    @app.route("/api/debug/arm/test", methods=["POST"])
+    def test_arm_connection():
+        """Test ARM API connection by making a request."""
+        if collectors is None or "arm" not in collectors:
+            return jsonify({"error": "ARM collector not available"}), 500
+        
+        arm_collector = collectors["arm"]
+        
+        # Force a fetch (bypasses cache)
+        if hasattr(arm_collector, "_fetch_data"):
+            # Clear cache first to force fresh fetch
+            if hasattr(arm_collector, "clear_cache"):
+                arm_collector.clear_cache()
+            
+            result = arm_collector._fetch_data()
+            logs = arm_collector.get_debug_logs() if hasattr(arm_collector, "get_debug_logs") else []
+            
+            return jsonify({
+                "success": result is not None,
+                "result": result,
+                "result_type": type(result).__name__ if result else None,
+                "result_keys": list(result.keys()) if isinstance(result, dict) else None,
+                "has_active_rip": arm_collector.has_active_rip() if hasattr(arm_collector, "has_active_rip") else None,
+                "latest_log": logs[-1] if logs else None
+            })
+        else:
+            return jsonify({"error": "Cannot test connection"}), 500
+    
+    @app.route("/api/debug/arm/data", methods=["GET"])
+    def get_arm_data():
+        """Get current ARM data (bypassing cache)."""
+        if collectors is None or "arm" not in collectors:
+            return jsonify({"error": "ARM collector not available"}), 500
+        
+        arm_collector = collectors["arm"]
+        
+        # Get cached data first
+        cached_data = None
+        if hasattr(arm_collector, "get_data"):
+            cached_data = arm_collector.get_data()
+        
+        # Force fresh fetch by clearing cache
+        fresh_data = None
+        if hasattr(arm_collector, "clear_cache"):
+            arm_collector.clear_cache()
+        if hasattr(arm_collector, "_fetch_data"):
+            fresh_data = arm_collector._fetch_data()
+        
+        # Check what get_data returns after fresh fetch
+        final_data = None
+        if hasattr(arm_collector, "get_data"):
+            final_data = arm_collector.get_data()
+        
+        return jsonify({
+            "cached_data_before": cached_data,
+            "cached_data_type": type(cached_data).__name__ if cached_data is not None else "None",
+            "fresh_fetch_result": fresh_data,
+            "fresh_data_type": type(fresh_data).__name__ if fresh_data is not None else "None",
+            "get_data_after_fresh": final_data,
+            "final_data_type": type(final_data).__name__ if final_data is not None else "None",
+            "has_active_rip": arm_collector.has_active_rip() if hasattr(arm_collector, "has_active_rip") else None,
+        })
+    
     @app.route("/api/preview/<int:slide_id>", methods=["GET"])
     def preview_slide(slide_id):
         """Generate preview image of a slide."""

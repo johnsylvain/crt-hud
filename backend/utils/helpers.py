@@ -28,6 +28,19 @@ def format_duration(seconds: float) -> str:
         return f"{hours}h {minutes}m"
 
 
+def format_time_mmss(milliseconds: int) -> str:
+    """Format milliseconds to MM:SS or M:SS format for music tracks."""
+    if milliseconds <= 0:
+        return "0:00"
+    
+    total_seconds = milliseconds // 1000
+    minutes = total_seconds // 60
+    seconds = total_seconds % 60
+    
+    # Return M:SS or MM:SS (don't pad minutes if less than 10)
+    return f"{minutes}:{seconds:02d}"
+
+
 def parse_datetime(dt_str: str) -> Optional[datetime]:
     """Parse datetime string from various formats."""
     formats = [

@@ -3,7 +3,7 @@
 from PIL import Image, ImageDraw
 from typing import Dict, Any, Optional
 from .themes import FalloutTheme, DISPLAY_WIDTH, DISPLAY_HEIGHT, PADDING, LINE_HEIGHT_LARGE, LINE_HEIGHT_MEDIUM, LINE_HEIGHT_SMALL, LINE_HEIGHT_TINY
-from ..utils.helpers import format_bytes, format_duration, calculate_elapsed_time, draw_progress_bar
+from ..utils.helpers import format_bytes, format_duration, format_time_mmss, calculate_elapsed_time, draw_progress_bar
 
 
 class SlideRenderer:
@@ -11,6 +11,54 @@ class SlideRenderer:
     
     def __init__(self):
         self.theme = FalloutTheme()
+    
+    def _wrap_text(self, text: str, font, max_width: int, draw: ImageDraw.Draw = None) -> list:
+        """Wrap text into multiple lines that fit within max_width pixels."""
+        # Use draw.textlength() if available, otherwise estimate
+        try:
+            # PIL 9.0+ has font.getlength(), older versions use draw.textlength()
+            if hasattr(font, 'getlength'):
+                def text_length_func(txt):
+                    return font.getlength(txt)
+            elif draw and hasattr(draw, 'textlength'):
+                def text_length_func(txt):
+                    return draw.textlength(txt, font=font)
+            else:
+                # Fallback: estimate based on character count (monospace)
+                # Approximate: font size * 0.6 for monospace fonts
+                char_width = getattr(font, 'size', 16) * 0.6 if hasattr(font, 'size') else 16 * 0.6
+                def text_length_func(txt):
+                    return len(txt) * char_width
+        except Exception:
+            # Ultimate fallback: estimate based on character count
+            char_width = 16 * 0.6
+            def text_length_func(txt):
+                return len(txt) * char_width
+        
+        words = text.split()
+        lines = []
+        current_line = []
+        current_width = 0
+        
+        for word in words:
+            # Calculate width of word with a space
+            word_text = word + " "
+            word_width = text_length_func(word_text)
+            
+            # If adding this word would exceed max width, start a new line
+            if current_line and current_width + word_width > max_width:
+                lines.append(" ".join(current_line))
+                current_line = [word]
+                current_width = text_length_func(word)
+            else:
+                current_line.append(word)
+                current_width += word_width
+        
+        # Add the last line
+        if current_line:
+            lines.append(" ".join(current_line))
+        
+        return lines if lines else [text]
     
     def render(self, slide_type: str, data: Optional[Dict[str, Any]], title: str = "") -> Image.Image:
         """
@@ -121,16 +169,29 @@ class SlideRenderer:
         title = session.get("title", "Unknown")
         progress = session.get("progress", 0)
         transcoding = session.get("transcoding", False)
+        media_type = session.get("type", "")
+        view_offset = session.get("view_offset", 0)  # milliseconds
+        duration = session.get("duration", 0)  # milliseconds
         
         # User
         draw.text((PADDING, y), f"{user}:", fill=self.theme.colors["text"], font=font_medium)
         y += LINE_HEIGHT_MEDIUM
         
-        # Title (truncate if too long for larger font)
-        max_title_len = 25
-        display_title = title[:max_title_len] + "..." if len(title) > max_title_len else title
-        draw.text((PADDING, y), display_title, fill=self.theme.colors["text_secondary"], font=font_small)
-        y += LINE_HEIGHT_SMALL + 4
+        # Title (no truncation - show full title, wrap to multiple lines if needed)
+        max_title_width = DISPLAY_WIDTH - (PADDING * 2)
+        title_lines = self._wrap_text(title, font_small, max_title_width, draw)
+        for line in title_lines:
+            draw.text((PADDING, y), line, fill=self.theme.colors["text_secondary"], font=font_small)
+            y += LINE_HEIGHT_SMALL
+        y += 4  # Extra spacing after title
+        
+        # For music tracks, show time/duration
+        if media_type == "track" and duration > 0:
+            current_time = format_time_mmss(view_offset)
+            total_time = format_time_mmss(duration)
+            time_str = f"{current_time} / {total_time}"
+            draw.text((PADDING, y), time_str, fill=self.theme.colors["text"], font=font_small)
+            y += LINE_HEIGHT_SMALL + 2
         
         # Progress bar
         bar_width = 30
@@ -194,19 +255,19 @@ class SlideRenderer:
         """Render system stats (CPU, Memory, NAS storage)."""
         font_medium = self.theme.fonts["medium"]
         font_small = self.theme.fonts["small"]
+        bar_width = 30  # Increased for better visibility
         
         # CPU
         cpu_data = data.get("cpu", {})
         cpu_percent = cpu_data.get("percent", 0)
         draw.text((PADDING, y), f"CPU: {cpu_percent:.1f}%", fill=self.theme.colors["text"], font=font_medium)
-        
-        # CPU bar (on the right side)
-        bar_width = 25
-        cpu_bar = draw_progress_bar(bar_width, cpu_percent, 100.0)
-        bar_x = DISPLAY_WIDTH - PADDING - bar_width * 7  # Approximate width for bar string
-        draw.text((bar_x, y), cpu_bar, 
-                 fill=self.theme.colors["text"], font=font_small)
         y += LINE_HEIGHT_MEDIUM
+        
+        # CPU progress bar on separate line
+        cpu_bar = draw_progress_bar(bar_width, cpu_percent, 100.0)
+        draw.text((PADDING, y), cpu_bar, 
+                 fill=self.theme.colors["text"], font=font_small)
+        y += LINE_HEIGHT_SMALL + 4
         
         # Memory
         mem_data = data.get("memory", {})
@@ -216,14 +277,17 @@ class SlideRenderer:
         
         mem_used_str = format_bytes(mem_used)
         mem_total_str = format_bytes(mem_total)
+        
+        # Memory text on one line
         draw.text((PADDING, y), f"MEM: {mem_used_str} / {mem_total_str}", 
                  fill=self.theme.colors["text"], font=font_medium)
+        y += LINE_HEIGHT_MEDIUM
         
-        # Memory bar (on the right side)
+        # Memory progress bar on separate line
         mem_bar = draw_progress_bar(bar_width, mem_percent, 100.0)
-        draw.text((bar_x, y), mem_bar, 
+        draw.text((PADDING, y), mem_bar, 
                  fill=self.theme.colors["text"], font=font_small)
-        y += LINE_HEIGHT_MEDIUM + 4
+        y += LINE_HEIGHT_SMALL + 4
         
         # Disk/NAS storage - show only 1 disk per slide for better readability
         disks = data.get("disks", [])
@@ -242,16 +306,17 @@ class SlideRenderer:
             disk_used_str = format_bytes(disk_used)
             disk_total_str = format_bytes(disk_total)
             
-            # First line: path and usage
+            # Path label
             draw.text((PADDING, y), f"{path_label}:", 
-                     fill=self.theme.colors["text_secondary"], font=font_small)
-            y += LINE_HEIGHT_SMALL
+                     fill=self.theme.colors["text"], font=font_medium)
+            y += LINE_HEIGHT_MEDIUM
             
+            # Usage on separate line
             draw.text((PADDING, y), f"{disk_used_str} / {disk_total_str}", 
                      fill=self.theme.colors["text_secondary"], font=font_small)
             y += LINE_HEIGHT_SMALL
             
-            # Percentage bar
+            # Percentage and bar on separate line
             disk_bar = draw_progress_bar(bar_width, disk_percent, 100.0)
             draw.text((PADDING, y), f"{disk_percent:.1f}% {disk_bar}", 
                      fill=self.theme.colors["text"], font=font_small)
