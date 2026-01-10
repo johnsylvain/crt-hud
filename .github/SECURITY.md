@@ -41,4 +41,3 @@ If you're running this on a public repository, please ensure:
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability, please report it via email rather than opening a public issue.
-
