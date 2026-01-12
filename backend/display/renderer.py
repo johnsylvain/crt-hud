@@ -350,19 +350,19 @@ class SlideRenderer:
         jobs_per_slide = min(3, len(jobs))
         space_per_job = (available_height - (job_spacing * (jobs_per_slide - 1))) // jobs_per_slide
         
-        # Render each job in compact format
+        # Render each job in exactly 3 lines
         for idx, job in enumerate(jobs):
-            if y + LINE_HEIGHT_TINY > DISPLAY_HEIGHT - PADDING:
+            # Check if we have space for 3 more lines
+            if y + (LINE_HEIGHT_TINY * 3) > DISPLAY_HEIGHT - PADDING:
                 break  # No more space
-            
-            job_y_start = y
             
             # Get job data
             title = job.get("title", "Unknown")
             progress_str = job.get("progress", "0")
             stage = job.get("stage", "")
+            status = job.get("status", "").lower()
             disctype = job.get("disctype") or job.get("video_type", "")
-            job_id = job.get("job_id", "")
+            start_time = job.get("start_time", "")
             
             # Parse progress
             try:
@@ -370,49 +370,70 @@ class SlideRenderer:
             except (ValueError, TypeError):
                 progress = 0.0
             
-            # Title (truncate to fit on one line with tiny font)
+            # Determine operation/status from stage or status field
+            # Stage examples: "Track: 1/11", "Ripping", "Transcoding", etc.
+            operation = ""
+            if stage:
+                # Check if stage contains operation keywords
+                stage_lower = stage.lower()
+                if "transcode" in stage_lower or "transcoding" in stage_lower:
+                    operation = "TRANSCODING"
+                elif "rip" in stage_lower or "ripping" in stage_lower:
+                    operation = "RIPPING"
+                elif "track:" in stage_lower:
+                    # For DVD/CD rips showing track progress
+                    operation = stage.strip()  # Use stage as-is (e.g., "Track: 1/11")
+                else:
+                    # Use stage if it's short and meaningful, otherwise try status
+                    if len(stage) <= 20:
+                        operation = stage.upper()
+                    else:
+                        operation = status.upper() if status else "PROCESSING"
+            elif status:
+                operation = status.upper()
+            else:
+                operation = "PROCESSING"
+            
+            # Line 1: Title (truncate to fit)
             max_title_width = DISPLAY_WIDTH - (PADDING * 2)
-            max_title_len = max_title_width // 8  # Rough estimate for tiny font
-            display_title = title[:max_title_len] + "..." if len(title) > max_title_len else title
-            
-            # Draw title and type on same line (space permitting)
-            title_line = display_title
-            if disctype and len(title_line) + len(disctype) + 3 < max_title_len:
-                title_line = f"{display_title} ({disctype})"
-            
-            draw.text((PADDING, y), title_line, fill=self.theme.colors["text"], font=font_tiny)
+            max_title_chars = 35  # Approx chars that fit in tiny font
+            display_title = title[:max_title_chars] + "..." if len(title) > max_title_chars else title
+            draw.text((PADDING, y), display_title, fill=self.theme.colors["text"], font=font_tiny)
             y += LINE_HEIGHT_TINY
             
-            # Progress bar and stage on same line if possible
-            if progress > 0 or stage:
-                bar_width = 20  # Compact progress bar
-                if progress > 0:
-                    bar = draw_progress_bar(bar_width, progress, 100.0)
-                    progress_text = f"{progress:.0f}% {bar}"
-                else:
-                    progress_text = "0% " + "[" + " " * bar_width + "]"
-                
-                # Stage info (truncate if needed)
-                stage_display = ""
-                if stage:
-                    max_stage_len = 15
-                    stage_display = stage[:max_stage_len] + "..." if len(stage) > max_stage_len else stage
-                
-                # Combine progress and stage if they fit
-                if stage_display and len(progress_text) + len(stage_display) + 2 < 35:
-                    status_line = f"{progress_text} | {stage_display}"
-                elif stage_display:
-                    status_line = stage_display
-                else:
-                    status_line = progress_text
-                
-                draw.text((PADDING, y), status_line, fill=self.theme.colors["text_secondary"], font=font_tiny)
-                y += LINE_HEIGHT_TINY
+            # Line 2: Progress bar + Operation/Status
+            bar_width = 20
+            if progress > 0:
+                bar = draw_progress_bar(bar_width, progress, 100.0)
+                progress_text = f"{progress:.0f}% {bar}"
             else:
-                # Just show job ID if available
-                if job_id:
-                    draw.text((PADDING, y), f"JOB: {job_id}", fill=self.theme.colors["text_muted"], font=font_tiny)
-                    y += LINE_HEIGHT_TINY
+                bar = draw_progress_bar(bar_width, 0, 100.0)
+                progress_text = f"0% {bar}"
+            
+            # Truncate operation to fit on same line as progress
+            max_op_len = 15
+            if len(operation) > max_op_len:
+                operation_display = operation[:max_op_len-3] + "..."
+            else:
+                operation_display = operation
+            
+            # Combine progress and operation
+            line2 = f"{progress_text} | {operation_display}"
+            draw.text((PADDING, y), line2, fill=self.theme.colors["text_secondary"], font=font_tiny)
+            y += LINE_HEIGHT_TINY
+            
+            # Line 3: Most relevant additional info (elapsed time preferred, then disc type)
+            line3 = ""
+            if start_time:
+                elapsed = calculate_elapsed_time(start_time)
+                elapsed_str = format_duration(elapsed)
+                line3 = f"Elapsed: {elapsed_str}"
+            elif disctype:
+                line3 = f"Type: {disctype}"
+            
+            if line3:
+                draw.text((PADDING, y), line3, fill=self.theme.colors["text_muted"], font=font_tiny)
+            y += LINE_HEIGHT_TINY
             
             # Add separator line between jobs (except last)
             if idx < len(jobs) - 1:
