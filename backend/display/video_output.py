@@ -159,40 +159,26 @@ class FramebufferOutput(VideoOutput):
                 print(f"Framebuffer device {self.device} not found")
                 return False
             
-            # Set framebuffer resolution to 320x280 explicitly
+            # Try to get framebuffer info using fbset if available
+            # This detects the actual resolution instead of forcing it
             try:
-                # Use fbset to set the resolution
-                # Format: fbset -xres WIDTH -yres HEIGHT -depth BPP
-                result = subprocess.run(
-                    ['fbset', '-xres', '320', '-yres', '280', '-depth', '16'],
-                    capture_output=True, text=True, timeout=2
-                )
+                result = subprocess.run(['fbset', '-i'], capture_output=True, text=True, timeout=2)
                 if result.returncode == 0:
-                    print("Set framebuffer resolution to 320x280 @ 16bpp")
-                    self.fb_width = 320
-                    self.fb_height = 280
-                    self.fb_bpp = 16
+                    # Parse fbset output to get actual dimensions
+                    for line in result.stdout.split('\n'):
+                        if 'geometry' in line:
+                            parts = line.split()
+                            if len(parts) >= 3:
+                                self.fb_width = int(parts[1])
+                                self.fb_height = int(parts[2])
+                                if len(parts) >= 5:
+                                    self.fb_bpp = int(parts[4])
+                            print(f"Detected framebuffer: {self.fb_width}x{self.fb_height} @ {self.fb_bpp}bpp")
                 else:
-                    print(f"Warning: fbset returned error: {result.stderr}")
-            except (subprocess.TimeoutExpired, FileNotFoundError, ValueError) as e:
-                print(f"Warning: Could not set framebuffer resolution with fbset: {e}")
-                # Try to get current framebuffer info
-                try:
-                    result = subprocess.run(['fbset', '-i'], capture_output=True, text=True, timeout=2)
-                    if result.returncode == 0:
-                        # Parse fbset output to get actual dimensions
-                        for line in result.stdout.split('\n'):
-                            if 'geometry' in line:
-                                parts = line.split()
-                                if len(parts) >= 3:
-                                    self.fb_width = int(parts[1])
-                                    self.fb_height = int(parts[2])
-                                    if len(parts) >= 5:
-                                        self.fb_bpp = int(parts[4])
-                                print(f"Detected framebuffer: {self.fb_width}x{self.fb_height} @ {self.fb_bpp}bpp")
-                except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
-                    # fbset not available or parsing failed, use defaults
                     print(f"Using default framebuffer size: {self.fb_width}x{self.fb_height} @ {self.fb_bpp}bpp")
+            except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+                # fbset not available or parsing failed, use defaults
+                print(f"Using default framebuffer size: {self.fb_width}x{self.fb_height} @ {self.fb_bpp}bpp")
             
             # Disable console cursor and output - use multiple methods for reliability
             print("Disabling console cursor and output...")

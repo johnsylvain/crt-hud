@@ -16,17 +16,17 @@ DISPLAY_WIDTH = 320
 DISPLAY_HEIGHT = 280
 
 # Font settings - increased for better readability on CRT
-FONT_SIZE_LARGE = 22
-FONT_SIZE_MEDIUM = 18
-FONT_SIZE_SMALL = 16
-FONT_SIZE_TINY = 14
+FONT_SIZE_LARGE = 28
+FONT_SIZE_MEDIUM = 22
+FONT_SIZE_SMALL = 18
+FONT_SIZE_TINY = 16
 
-# Layout constants - adjusted for larger fonts
-PADDING = 8
-LINE_HEIGHT_LARGE = 28
-LINE_HEIGHT_MEDIUM = 22
-LINE_HEIGHT_SMALL = 20
-LINE_HEIGHT_TINY = 18
+# Layout constants - adjusted for larger fonts and more padding
+PADDING = 12
+LINE_HEIGHT_LARGE = 34
+LINE_HEIGHT_MEDIUM = 26
+LINE_HEIGHT_SMALL = 22
+LINE_HEIGHT_TINY = 20
 
 
 def get_monospace_font(size: int) -> ImageFont.FreeTypeFont:
