@@ -131,12 +131,92 @@ def load_config(file_path: Path, default: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def save_config(file_path: Path, config: Dict[str, Any]) -> None:
-    """Save configuration to JSON file."""
+    """Save configuration to JSON file.
+    
+    Raises:
+        IOError: If file cannot be written (permission denied, disk full, etc.)
+        OSError: If directory cannot be created or other OS-level error occurs
+    """
+    import stat
+    
+    # Ensure parent directory exists
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Check if file exists and get current permissions for logging
+    file_exists = file_path.exists()
+    if file_exists:
+        try:
+            file_stat = file_path.stat()
+            file_perms = stat.filemode(file_stat.st_mode)
+            file_owner = file_stat.st_uid
+            print(f"DEBUG: Existing file {file_path} - permissions: {file_perms}, owner UID: {file_owner}")
+        except OSError as e:
+            print(f"DEBUG: Could not stat existing file {file_path}: {e}")
+    
+    # Check directory permissions
     try:
-        with open(file_path, 'w') as f:
+        dir_stat = file_path.parent.stat()
+        dir_perms = stat.filemode(dir_stat.st_mode)
+        dir_owner = dir_stat.st_uid
+        print(f"DEBUG: Directory {file_path.parent} - permissions: {dir_perms}, owner UID: {dir_owner}")
+    except OSError as e:
+        print(f"DEBUG: Could not stat directory {file_path.parent}: {e}")
+    
+    # Get current user info for logging
+    try:
+        current_uid = os.getuid()
+        try:
+            import pwd
+            current_user = pwd.getpwuid(current_uid).pw_name
+            print(f"DEBUG: Current user: {current_user} (UID: {current_uid})")
+        except (ImportError, KeyError):
+            # pwd not available or user not found
+            print(f"DEBUG: Current UID: {current_uid}")
+    except AttributeError:
+        # Windows - os.getuid() not available
+        print(f"DEBUG: Running on Windows")
+    
+    try:
+        # Write to temporary file first, then rename (atomic write)
+        temp_file = file_path.with_suffix(file_path.suffix + '.tmp')
+        with open(temp_file, 'w') as f:
             json.dump(config, f, indent=2)
-    except IOError as e:
-        print(f"Error saving config {file_path}: {e}")
+            f.flush()
+            os.fsync(f.fileno())  # Force write to disk
+        
+        # Verify temp file was written
+        if not temp_file.exists() or temp_file.stat().st_size == 0:
+            raise IOError(f"Failed to write temporary file {temp_file}")
+        
+        # Atomic rename (works on Unix, may need different approach on Windows)
+        temp_file.replace(file_path)
+        
+        # Verify final file exists and has content
+        if not file_path.exists():
+            raise IOError(f"File {file_path} was not created after write")
+        
+        file_size = file_path.stat().st_size
+        if file_size == 0:
+            raise IOError(f"File {file_path} was created but is empty")
+        
+        print(f"DEBUG: Successfully saved config to {file_path} ({file_size} bytes)")
+        
+    except (IOError, OSError) as e:
+        error_msg = f"Error saving config {file_path}: {e}"
+        print(f"ERROR: {error_msg}")
+        
+        # Additional diagnostic info
+        if isinstance(e, PermissionError):
+            print(f"ERROR: Permission denied - check file and directory permissions")
+            print(f"ERROR: File path: {file_path}")
+            print(f"ERROR: Directory: {file_path.parent}")
+            if file_path.exists():
+                print(f"ERROR: File exists but may not be writable")
+            else:
+                print(f"ERROR: Directory may not be writable")
+        
+        # Re-raise the exception so API can handle it
+        raise
 
 
 def get_slides_config() -> Dict[str, Any]:

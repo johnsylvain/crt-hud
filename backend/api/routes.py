@@ -87,7 +87,14 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
                 return jsonify({"error": "Invalid configuration: each slide must have 'id' and 'type'"}), 400
         
         # Save the configuration
-        save_slides_config(data)
+        try:
+            save_slides_config(data)
+        except (IOError, OSError, PermissionError) as e:
+            error_msg = str(e)
+            if isinstance(e, PermissionError):
+                error_msg = f"Permission denied: Cannot write to slides.json. Check file permissions on the data directory."
+            return jsonify({"error": error_msg, "details": f"Failed to save configuration: {e}"}), 500
+        
         return jsonify({"success": True, "config": data})
     
     @app.route("/api/slides", methods=["POST"])
@@ -161,7 +168,14 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
         
         slides.append(new_slide)
         config["slides"] = slides
-        save_slides_config(config)
+        
+        try:
+            save_slides_config(config)
+        except (IOError, OSError, PermissionError) as e:
+            error_msg = str(e)
+            if isinstance(e, PermissionError):
+                error_msg = f"Permission denied: Cannot write to slides.json. Check file permissions on the data directory."
+            return jsonify({"error": error_msg, "details": f"Failed to save slide: {e}"}), 500
         
         return jsonify(new_slide), 201
     
@@ -188,7 +202,14 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
                     del slides[i]["condition_type"]
                 
                 config["slides"] = slides
-                save_slides_config(config)
+                try:
+                    save_slides_config(config)
+                except (IOError, OSError, PermissionError) as e:
+                    error_msg = str(e)
+                    if isinstance(e, PermissionError):
+                        error_msg = f"Permission denied: Cannot write to slides.json. Check file permissions on the data directory."
+                    return jsonify({"error": error_msg, "details": f"Failed to update slide: {e}"}), 500
+                
                 return jsonify(slides[i])
         
         return jsonify({"error": "Slide not found"}), 404
@@ -204,7 +225,14 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             if slide.get("id") == slide_id:
                 slides.pop(i)
                 config["slides"] = slides
-                save_slides_config(config)
+                try:
+                    save_slides_config(config)
+                except (IOError, OSError, PermissionError) as e:
+                    error_msg = str(e)
+                    if isinstance(e, PermissionError):
+                        error_msg = f"Permission denied: Cannot write to slides.json. Check file permissions on the data directory."
+                    return jsonify({"error": error_msg, "details": f"Failed to delete slide: {e}"}), 500
+                
                 return jsonify({"success": True})
         
         return jsonify({"error": "Slide not found"}), 404
@@ -236,7 +264,13 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
                 reordered.append(slide)
         
         config["slides"] = sorted(reordered, key=lambda x: x.get("order", 0))
-        save_slides_config(config)
+        try:
+            save_slides_config(config)
+        except (IOError, OSError, PermissionError) as e:
+            error_msg = str(e)
+            if isinstance(e, PermissionError):
+                error_msg = f"Permission denied: Cannot write to slides.json. Check file permissions on the data directory."
+            return jsonify({"error": error_msg, "details": f"Failed to reorder slides: {e}"}), 500
         
         return jsonify(config)
     
@@ -266,7 +300,14 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
     def update_config():
         """Update API configuration (for weather and other global configs)."""
         data = request.get_json()
-        save_api_config(data)
+        try:
+            save_api_config(data)
+        except (IOError, OSError, PermissionError) as e:
+            error_msg = str(e)
+            if isinstance(e, PermissionError):
+                error_msg = f"Permission denied: Cannot write to api_config.json. Check file permissions on the data directory."
+            return jsonify({"error": error_msg, "details": f"Failed to save configuration: {e}"}), 500
+        
         return jsonify({"success": True})
     
     @app.route("/api/stats", methods=["GET"])
