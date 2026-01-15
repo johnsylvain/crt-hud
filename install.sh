@@ -106,6 +106,68 @@ get_service_user() {
     print_info "Service will run as user: $SERVICE_USER"
 }
 
+# Configure cmdline.txt to disable console on framebuffer
+configure_cmdline() {
+    print_info "Configuring cmdline.txt to disable console on framebuffer..."
+    
+    CMDLINE_FILE="/boot/cmdline.txt"
+    CMDLINE_BACKUP="/boot/cmdline.txt.homelab-hud.backup"
+    CMDLINE_TEMP="/tmp/cmdline.txt.homelab-hud.tmp"
+    
+    if [ ! -f "$CMDLINE_FILE" ]; then
+        print_warning "Could not find $CMDLINE_FILE, skipping cmdline configuration"
+        return
+    fi
+    
+    # Create backup if it doesn't exist
+    if [ ! -f "$CMDLINE_BACKUP" ]; then
+        cp "$CMDLINE_FILE" "$CMDLINE_BACKUP"
+        print_success "Created cmdline backup: $CMDLINE_BACKUP"
+    fi
+    
+    # Read cmdline.txt (it's a single line)
+    CMDLINE_CONTENT=$(cat "$CMDLINE_FILE")
+    
+    # Remove console=tty1 if present (this shows console on framebuffer)
+    if echo "$CMDLINE_CONTENT" | grep -q "console=tty1"; then
+        CMDLINE_CONTENT=$(echo "$CMDLINE_CONTENT" | sed 's/\bconsole=tty1\b//g')
+        print_info "Removed console=tty1 from cmdline.txt"
+    fi
+    
+    # Remove console=ttyAMA0,console=tty1 if present
+    if echo "$CMDLINE_CONTENT" | grep -q "console=ttyAMA0,console=tty1"; then
+        CMDLINE_CONTENT=$(echo "$CMDLINE_CONTENT" | sed 's/\bconsole=ttyAMA0,console=tty1\b/console=ttyAMA0/g')
+        print_info "Removed console=tty1 from combined console setting"
+    fi
+    
+    # Add consoleblank=0 if not present (prevents screen blanking)
+    if ! echo "$CMDLINE_CONTENT" | grep -q "consoleblank="; then
+        CMDLINE_CONTENT="$CMDLINE_CONTENT consoleblank=0"
+        print_info "Added consoleblank=0 to cmdline.txt"
+    fi
+    
+    # Clean up multiple spaces
+    CMDLINE_CONTENT=$(echo "$CMDLINE_CONTENT" | sed 's/  */ /g' | sed 's/^ *//' | sed 's/ *$//')
+    
+    # Write to temp file first
+    echo "$CMDLINE_CONTENT" > "$CMDLINE_TEMP"
+    
+    # Verify temp file is valid (not empty, single line)
+    if [ ! -s "$CMDLINE_TEMP" ]; then
+        print_error "Temporary cmdline file is empty! Restoring from backup..."
+        cp "$CMDLINE_BACKUP" "$CMDLINE_FILE"
+        rm -f "$CMDLINE_TEMP"
+        return 1
+    fi
+    
+    # Move temp file to actual cmdline
+    mv "$CMDLINE_TEMP" "$CMDLINE_FILE"
+    chmod 644 "$CMDLINE_FILE"
+    
+    print_success "cmdline.txt configured to disable console on framebuffer"
+    print_info "Console output redirected away from composite video"
+}
+
 # Configure composite video output in /boot/config.txt
 configure_composite_video() {
     print_info "Configuring composite video output..."
@@ -204,68 +266,6 @@ configure_composite_video() {
     configure_cmdline()
     
     print_warning "Reboot required for video configuration to take effect"
-}
-
-# Configure cmdline.txt to disable console on framebuffer
-configure_cmdline() {
-    print_info "Configuring cmdline.txt to disable console on framebuffer..."
-    
-    CMDLINE_FILE="/boot/cmdline.txt"
-    CMDLINE_BACKUP="/boot/cmdline.txt.homelab-hud.backup"
-    CMDLINE_TEMP="/tmp/cmdline.txt.homelab-hud.tmp"
-    
-    if [ ! -f "$CMDLINE_FILE" ]; then
-        print_warning "Could not find $CMDLINE_FILE, skipping cmdline configuration"
-        return
-    fi
-    
-    # Create backup if it doesn't exist
-    if [ ! -f "$CMDLINE_BACKUP" ]; then
-        cp "$CMDLINE_FILE" "$CMDLINE_BACKUP"
-        print_success "Created cmdline backup: $CMDLINE_BACKUP"
-    fi
-    
-    # Read cmdline.txt (it's a single line)
-    CMDLINE_CONTENT=$(cat "$CMDLINE_FILE")
-    
-    # Remove console=tty1 if present (this shows console on framebuffer)
-    if echo "$CMDLINE_CONTENT" | grep -q "console=tty1"; then
-        CMDLINE_CONTENT=$(echo "$CMDLINE_CONTENT" | sed 's/\bconsole=tty1\b//g')
-        print_info "Removed console=tty1 from cmdline.txt"
-    fi
-    
-    # Remove console=ttyAMA0,console=tty1 if present
-    if echo "$CMDLINE_CONTENT" | grep -q "console=ttyAMA0,console=tty1"; then
-        CMDLINE_CONTENT=$(echo "$CMDLINE_CONTENT" | sed 's/\bconsole=ttyAMA0,console=tty1\b/console=ttyAMA0/g')
-        print_info "Removed console=tty1 from combined console setting"
-    fi
-    
-    # Add consoleblank=0 if not present (prevents screen blanking)
-    if ! echo "$CMDLINE_CONTENT" | grep -q "consoleblank="; then
-        CMDLINE_CONTENT="$CMDLINE_CONTENT consoleblank=0"
-        print_info "Added consoleblank=0 to cmdline.txt"
-    fi
-    
-    # Clean up multiple spaces
-    CMDLINE_CONTENT=$(echo "$CMDLINE_CONTENT" | sed 's/  */ /g' | sed 's/^ *//' | sed 's/ *$//')
-    
-    # Write to temp file first
-    echo "$CMDLINE_CONTENT" > "$CMDLINE_TEMP"
-    
-    # Verify temp file is valid (not empty, single line)
-    if [ ! -s "$CMDLINE_TEMP" ]; then
-        print_error "Temporary cmdline file is empty! Restoring from backup..."
-        cp "$CMDLINE_BACKUP" "$CMDLINE_FILE"
-        rm -f "$CMDLINE_TEMP"
-        return 1
-    fi
-    
-    # Move temp file to actual cmdline
-    mv "$CMDLINE_TEMP" "$CMDLINE_FILE"
-    chmod 644 "$CMDLINE_FILE"
-    
-    print_success "cmdline.txt configured to disable console on framebuffer"
-    print_info "Console output redirected away from composite video"
 }
 
 # Create systemd service file
