@@ -152,48 +152,99 @@ class FramebufferOutput(VideoOutput):
     def initialize(self) -> bool:
         """Initialize framebuffer device and disable console output."""
         try:
+            import subprocess
+            
             # Check if device exists
             if not os.path.exists(self.device):
                 print(f"Framebuffer device {self.device} not found")
                 return False
             
-            # Try to disable console on framebuffer using con2fbmap if available
+            # Set framebuffer resolution to 320x280 explicitly
             try:
-                import subprocess
+                # Use fbset to set the resolution
+                # Format: fbset -xres WIDTH -yres HEIGHT -depth BPP
+                result = subprocess.run(
+                    ['fbset', '-xres', '320', '-yres', '280', '-depth', '16'],
+                    capture_output=True, text=True, timeout=2
+                )
+                if result.returncode == 0:
+                    print("Set framebuffer resolution to 320x280 @ 16bpp")
+                    self.fb_width = 320
+                    self.fb_height = 280
+                    self.fb_bpp = 16
+                else:
+                    print(f"Warning: fbset returned error: {result.stderr}")
+            except (subprocess.TimeoutExpired, FileNotFoundError, ValueError) as e:
+                print(f"Warning: Could not set framebuffer resolution with fbset: {e}")
+                # Try to get current framebuffer info
+                try:
+                    result = subprocess.run(['fbset', '-i'], capture_output=True, text=True, timeout=2)
+                    if result.returncode == 0:
+                        # Parse fbset output to get actual dimensions
+                        for line in result.stdout.split('\n'):
+                            if 'geometry' in line:
+                                parts = line.split()
+                                if len(parts) >= 3:
+                                    self.fb_width = int(parts[1])
+                                    self.fb_height = int(parts[2])
+                                    if len(parts) >= 5:
+                                        self.fb_bpp = int(parts[4])
+                                print(f"Detected framebuffer: {self.fb_width}x{self.fb_height} @ {self.fb_bpp}bpp")
+                except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
+                    # fbset not available or parsing failed, use defaults
+                    print(f"Using default framebuffer size: {self.fb_width}x{self.fb_height} @ {self.fb_bpp}bpp")
+            
+            # Disable console cursor and output - use multiple methods for reliability
+            print("Disabling console cursor and output...")
+            
+            # Method 1: Use setterm on current console
+            try:
+                subprocess.run(
+                    ['setterm', '-cursor', 'off', '-blank', '0', '-powerdown', '0'],
+                    capture_output=True, timeout=1
+                )
+            except (subprocess.TimeoutExpired, FileNotFoundError):
+                pass
+            
+            # Method 2: Use setterm on specific TTYs (if they exist)
+            for tty in ['tty1', 'tty2', 'tty3', 'tty4', 'tty5', 'tty6', 'tty7']:
+                tty_path = f'/dev/{tty}'
+                if os.path.exists(tty_path):
+                    try:
+                        # Use setterm with explicit TTY
+                        subprocess.run(
+                            ['setterm', '-cursor', 'off', '-blank', '0', '-powerdown', '0'],
+                            stdin=open(tty_path, 'wb'),
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            timeout=1
+                        )
+                    except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError, OSError):
+                        # TTY doesn't exist or no permission, continue
+                        pass
+            
+            # Method 3: Try to disable console on framebuffer using con2fbmap
+            try:
                 # Map console away from framebuffer (to tty2 or disable)
                 # This prevents terminal output from appearing on composite video
-                result = subprocess.run(['con2fbmap', '1', '1'], capture_output=True, text=True, timeout=1)
-                # If con2fbmap works, it maps console 1 to framebuffer 1 (which may not exist)
-                # The goal is to prevent console 1 from using framebuffer 0
+                subprocess.run(['con2fbmap', '1', '1'], capture_output=True, text=True, timeout=1)
             except (subprocess.TimeoutExpired, FileNotFoundError):
-                # con2fbmap not available, try alternative method
-                try:
-                    # Try to disable console output by writing to /sys/class/tty/console/active
-                    # or use setterm to disable console output
-                    subprocess.run(['setterm', '-blank', '0', '-powerdown', '0', '-cursor', 'off'], 
-                                 capture_output=True, timeout=1)
-                except (subprocess.TimeoutExpired, FileNotFoundError):
-                    # setterm not available, continue anyway
-                    pass
+                pass
             
-            # Try to get framebuffer info using fbset if available
+            # Method 4: Write escape sequences directly to console to hide cursor
+            # ANSI escape code to hide cursor: \033[?25l
             try:
-                import subprocess
-                result = subprocess.run(['fbset', '-i'], capture_output=True, text=True, timeout=2)
-                if result.returncode == 0:
-                    # Parse fbset output to get actual dimensions
-                    for line in result.stdout.split('\n'):
-                        if 'geometry' in line:
-                            parts = line.split()
-                            if len(parts) >= 3:
-                                self.fb_width = int(parts[1])
-                                self.fb_height = int(parts[2])
-                                if len(parts) >= 5:
-                                    self.fb_bpp = int(parts[4])
-                            print(f"Detected framebuffer: {self.fb_width}x{self.fb_height} @ {self.fb_bpp}bpp")
-            except (subprocess.TimeoutExpired, FileNotFoundError, ValueError):
-                # fbset not available or parsing failed, use defaults
-                print(f"Using default framebuffer size: {self.fb_width}x{self.fb_height} @ {self.fb_bpp}bpp")
+                for tty_path in ['/dev/console', '/dev/tty1']:
+                    if os.path.exists(tty_path):
+                        try:
+                            with open(tty_path, 'wb') as tty:
+                                tty.write(b'\033[?25l')  # Hide cursor
+                                tty.write(b'\033[2J')    # Clear screen
+                                tty.flush()
+                        except (PermissionError, OSError):
+                            pass
+            except Exception:
+                pass
             
             # Open framebuffer (requires write permissions)
             self.fb = open(self.device, "wb")
@@ -202,7 +253,7 @@ class FramebufferOutput(VideoOutput):
             # Clear framebuffer (write black screen) to remove any console output
             self._clear_framebuffer()
             
-            print(f"Framebuffer initialized: {self.device}")
+            print(f"Framebuffer initialized: {self.device} at {self.fb_width}x{self.fb_height} @ {self.fb_bpp}bpp")
             return True
         except PermissionError:
             print(f"Permission denied accessing {self.device}. Try running with sudo or add user to video group.")
