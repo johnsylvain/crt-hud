@@ -263,7 +263,7 @@ configure_composite_video() {
     print_info "All other settings preserved. Backup available at: $BACKUP_FILE"
     
     # Configure cmdline.txt to disable console on framebuffer
-    configure_cmdline()
+    configure_cmdline
     
     print_warning "Reboot required for video configuration to take effect"
 }
