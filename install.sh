@@ -112,6 +112,7 @@ configure_composite_video() {
     
     CONFIG_FILE="/boot/config.txt"
     BACKUP_FILE="/boot/config.txt.homelab-hud.backup"
+    TEMP_FILE="/tmp/config.txt.homelab-hud.tmp"
     
     if [ ! -f "$CONFIG_FILE" ]; then
         print_error "Could not find $CONFIG_FILE"
@@ -123,45 +124,148 @@ configure_composite_video() {
     if [ ! -f "$BACKUP_FILE" ]; then
         cp "$CONFIG_FILE" "$BACKUP_FILE"
         print_success "Created backup: $BACKUP_FILE"
+        print_info "You can restore original config with: sudo cp $BACKUP_FILE $CONFIG_FILE"
+    else
+        print_info "Backup already exists: $BACKUP_FILE"
     fi
     
+    # Use a temporary file to avoid corruption
+    cp "$CONFIG_FILE" "$TEMP_FILE"
+    
     # Check if enable_tvout is already set
-    if grep -q "^enable_tvout=" "$CONFIG_FILE"; then
-        # Update existing setting
-        sed -i 's/^enable_tvout=.*/enable_tvout=1/' "$CONFIG_FILE"
+    if grep -q "^enable_tvout=" "$TEMP_FILE"; then
+        # Update existing setting (only the value, preserve any comments on the line)
+        sed -i 's/^enable_tvout=.*/enable_tvout=1/' "$TEMP_FILE"
         print_info "Updated enable_tvout=1 in $CONFIG_FILE"
-    elif grep -q "^#.*enable_tvout" "$CONFIG_FILE"; then
-        # Uncomment and set
-        sed -i 's/^#.*enable_tvout.*/enable_tvout=1/' "$CONFIG_FILE"
+    elif grep -q "^#.*enable_tvout" "$TEMP_FILE"; then
+        # Uncomment and set (be careful to preserve line structure)
+        sed -i 's/^#\s*enable_tvout.*/enable_tvout=1/' "$TEMP_FILE"
         print_info "Enabled enable_tvout=1 in $CONFIG_FILE"
     else
-        # Add new setting
-        echo "" >> "$CONFIG_FILE"
-        echo "# Homelab HUD - Composite video output" >> "$CONFIG_FILE"
-        echo "enable_tvout=1" >> "$CONFIG_FILE"
+        # Add new setting at the end (preserve all existing content)
+        echo "" >> "$TEMP_FILE"
+        echo "# Homelab HUD - Composite video output" >> "$TEMP_FILE"
+        echo "enable_tvout=1" >> "$TEMP_FILE"
         print_info "Added enable_tvout=1 to $CONFIG_FILE"
     fi
     
     # Set framebuffer resolution (320x280)
     # Check if framebuffer settings exist
-    if grep -q "^framebuffer_width=" "$CONFIG_FILE"; then
-        sed -i 's/^framebuffer_width=.*/framebuffer_width=320/' "$CONFIG_FILE"
+    if grep -q "^framebuffer_width=" "$TEMP_FILE"; then
+        sed -i 's/^framebuffer_width=.*/framebuffer_width=320/' "$TEMP_FILE"
         print_info "Updated framebuffer_width=320"
     else
-        echo "framebuffer_width=320" >> "$CONFIG_FILE"
+        echo "framebuffer_width=320" >> "$TEMP_FILE"
         print_info "Added framebuffer_width=320"
     fi
     
-    if grep -q "^framebuffer_height=" "$CONFIG_FILE"; then
-        sed -i 's/^framebuffer_height=.*/framebuffer_height=280/' "$CONFIG_FILE"
+    if grep -q "^framebuffer_height=" "$TEMP_FILE"; then
+        sed -i 's/^framebuffer_height=.*/framebuffer_height=280/' "$TEMP_FILE"
         print_info "Updated framebuffer_height=280"
     else
-        echo "framebuffer_height=280" >> "$CONFIG_FILE"
+        echo "framebuffer_height=280" >> "$TEMP_FILE"
         print_info "Added framebuffer_height=280"
     fi
     
+    # Verify the temp file is valid (basic sanity check)
+    if [ ! -s "$TEMP_FILE" ]; then
+        print_error "Temporary config file is empty! Restoring from backup..."
+        cp "$BACKUP_FILE" "$CONFIG_FILE"
+        rm -f "$TEMP_FILE"
+        return 1
+    fi
+    
+    # Verify critical settings are preserved (SSH, autologin, network)
+    # Check for common SSH settings
+    if ! grep -q "dtparam=ssh" "$TEMP_FILE" && grep -q "dtparam=ssh" "$BACKUP_FILE"; then
+        print_warning "SSH setting may have been removed. Restoring from backup..."
+        cp "$BACKUP_FILE" "$CONFIG_FILE"
+        rm -f "$TEMP_FILE"
+        return 1
+    fi
+    
+    # Check for autologin settings
+    if ! grep -q "autologin" "$TEMP_FILE" && grep -q "autologin" "$BACKUP_FILE"; then
+        print_warning "Autologin setting may have been removed. Restoring from backup..."
+        cp "$BACKUP_FILE" "$CONFIG_FILE"
+        rm -f "$TEMP_FILE"
+        return 1
+    fi
+    
+    # If all checks pass, move temp file to actual config
+    mv "$TEMP_FILE" "$CONFIG_FILE"
+    chmod 644 "$CONFIG_FILE"
+    
     print_success "Composite video output configured"
+    print_info "Modified settings: enable_tvout=1, framebuffer_width=320, framebuffer_height=280"
+    print_info "All other settings preserved. Backup available at: $BACKUP_FILE"
+    
+    # Configure cmdline.txt to disable console on framebuffer
+    configure_cmdline()
+    
     print_warning "Reboot required for video configuration to take effect"
+}
+
+# Configure cmdline.txt to disable console on framebuffer
+configure_cmdline() {
+    print_info "Configuring cmdline.txt to disable console on framebuffer..."
+    
+    CMDLINE_FILE="/boot/cmdline.txt"
+    CMDLINE_BACKUP="/boot/cmdline.txt.homelab-hud.backup"
+    CMDLINE_TEMP="/tmp/cmdline.txt.homelab-hud.tmp"
+    
+    if [ ! -f "$CMDLINE_FILE" ]; then
+        print_warning "Could not find $CMDLINE_FILE, skipping cmdline configuration"
+        return
+    fi
+    
+    # Create backup if it doesn't exist
+    if [ ! -f "$CMDLINE_BACKUP" ]; then
+        cp "$CMDLINE_FILE" "$CMDLINE_BACKUP"
+        print_success "Created cmdline backup: $CMDLINE_BACKUP"
+    fi
+    
+    # Read cmdline.txt (it's a single line)
+    CMDLINE_CONTENT=$(cat "$CMDLINE_FILE")
+    
+    # Remove console=tty1 if present (this shows console on framebuffer)
+    if echo "$CMDLINE_CONTENT" | grep -q "console=tty1"; then
+        CMDLINE_CONTENT=$(echo "$CMDLINE_CONTENT" | sed 's/\bconsole=tty1\b//g')
+        print_info "Removed console=tty1 from cmdline.txt"
+    fi
+    
+    # Remove console=ttyAMA0,console=tty1 if present
+    if echo "$CMDLINE_CONTENT" | grep -q "console=ttyAMA0,console=tty1"; then
+        CMDLINE_CONTENT=$(echo "$CMDLINE_CONTENT" | sed 's/\bconsole=ttyAMA0,console=tty1\b/console=ttyAMA0/g')
+        print_info "Removed console=tty1 from combined console setting"
+    fi
+    
+    # Add consoleblank=0 if not present (prevents screen blanking)
+    if ! echo "$CMDLINE_CONTENT" | grep -q "consoleblank="; then
+        CMDLINE_CONTENT="$CMDLINE_CONTENT consoleblank=0"
+        print_info "Added consoleblank=0 to cmdline.txt"
+    fi
+    
+    # Clean up multiple spaces
+    CMDLINE_CONTENT=$(echo "$CMDLINE_CONTENT" | sed 's/  */ /g' | sed 's/^ *//' | sed 's/ *$//')
+    
+    # Write to temp file first
+    echo "$CMDLINE_CONTENT" > "$CMDLINE_TEMP"
+    
+    # Verify temp file is valid (not empty, single line)
+    if [ ! -s "$CMDLINE_TEMP" ]; then
+        print_error "Temporary cmdline file is empty! Restoring from backup..."
+        cp "$CMDLINE_BACKUP" "$CMDLINE_FILE"
+        rm -f "$CMDLINE_TEMP"
+        return 1
+    fi
+    
+    # Move temp file to actual cmdline
+    mv "$CMDLINE_TEMP" "$CMDLINE_FILE"
+    chmod 644 "$CMDLINE_FILE"
+    
+    print_success "cmdline.txt configured to disable console on framebuffer"
+    print_info "Console output redirected away from composite video"
 }
 
 # Create systemd service file

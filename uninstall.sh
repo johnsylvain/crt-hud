@@ -96,6 +96,8 @@ revert_composite_video() {
     
     CONFIG_FILE="/boot/config.txt"
     BACKUP_FILE="/boot/config.txt.homelab-hud.backup"
+    CMDLINE_FILE="/boot/cmdline.txt"
+    CMDLINE_BACKUP="/boot/cmdline.txt.homelab-hud.backup"
     
     if [ ! -f "$CONFIG_FILE" ]; then
         print_warning "Config file not found, skipping revert"
@@ -109,30 +111,52 @@ revert_composite_video() {
     
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         print_info "Keeping config.txt changes (backup available at $BACKUP_FILE)"
-        return
+    else
+        if [ -f "$BACKUP_FILE" ]; then
+            print_info "Restoring config.txt from backup..."
+            cp "$BACKUP_FILE" "$CONFIG_FILE"
+            print_success "Config file restored from backup"
+        else
+            print_warning "No config.txt backup file found. Manual cleanup may be needed."
+            print_info "Look for these lines in $CONFIG_FILE and remove if desired:"
+            echo "  - enable_tvout=1"
+            echo "  - framebuffer_width=320"
+            echo "  - framebuffer_height=280"
+        fi
     fi
     
-    if [ -f "$BACKUP_FILE" ]; then
-        print_info "Restoring config.txt from backup..."
-        cp "$BACKUP_FILE" "$CONFIG_FILE"
-        print_success "Config file restored from backup"
+    # Ask user if they want to revert cmdline.txt changes
+    echo ""
+    read -p "Do you want to revert /boot/cmdline.txt changes? (y/N): " -n 1 -r
+    echo ""
+    
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Keeping cmdline.txt changes (backup available at $CMDLINE_BACKUP)"
+    else
+        if [ -f "$CMDLINE_BACKUP" ]; then
+            print_info "Restoring cmdline.txt from backup..."
+            cp "$CMDLINE_BACKUP" "$CMDLINE_FILE"
+            print_success "cmdline.txt restored from backup"
+        else
+            print_warning "No cmdline.txt backup file found."
+            print_info "You may need to manually restore console=tty1 if it was removed"
+        fi
+    fi
+    
+    if [[ $REPLY =~ ^[Yy]$ ]] || [[ $REPLY =~ ^[Yy]$ ]]; then
         print_warning "Reboot required for changes to take effect"
         
-        # Ask if user wants to keep backup
-        read -p "Keep backup file? (Y/n): " -n 1 -r
+        # Ask if user wants to keep backup files
+        echo ""
+        read -p "Keep backup files? (Y/n): " -n 1 -r
         echo ""
         if [[ $REPLY =~ ^[Nn]$ ]]; then
-            rm -f "$BACKUP_FILE"
-            print_info "Backup file removed"
+            [ -f "$BACKUP_FILE" ] && rm -f "$BACKUP_FILE" && print_info "Config backup removed"
+            [ -f "$CMDLINE_BACKUP" ] && rm -f "$CMDLINE_BACKUP" && print_info "cmdline backup removed"
         else
-            print_info "Backup file kept at: $BACKUP_FILE"
+            [ -f "$BACKUP_FILE" ] && print_info "Config backup kept at: $BACKUP_FILE"
+            [ -f "$CMDLINE_BACKUP" ] && print_info "cmdline backup kept at: $CMDLINE_BACKUP"
         fi
-    else
-        print_warning "No backup file found. Manual cleanup may be needed."
-        print_info "Look for these lines in $CONFIG_FILE and remove if desired:"
-        echo "  - enable_tvout=1"
-        echo "  - framebuffer_width=320"
-        echo "  - framebuffer_height=280"
     fi
 }
 
