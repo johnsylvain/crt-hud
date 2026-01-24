@@ -211,7 +211,7 @@ configure_composite_video() {
         print_info "Added enable_tvout=1 to $CONFIG_FILE"
     fi
     
-    # Set framebuffer resolution (320x280)
+    # Set framebuffer resolution (320x240 for 240p - better readability on composite video)
     # Check if framebuffer settings exist
     if grep -q "^framebuffer_width=" "$TEMP_FILE"; then
         sed -i 's/^framebuffer_width=.*/framebuffer_width=320/' "$TEMP_FILE"
@@ -222,11 +222,11 @@ configure_composite_video() {
     fi
     
     if grep -q "^framebuffer_height=" "$TEMP_FILE"; then
-        sed -i 's/^framebuffer_height=.*/framebuffer_height=280/' "$TEMP_FILE"
-        print_info "Updated framebuffer_height=280"
+        sed -i 's/^framebuffer_height=.*/framebuffer_height=240/' "$TEMP_FILE"
+        print_info "Updated framebuffer_height=240 (240p)"
     else
-        echo "framebuffer_height=280" >> "$TEMP_FILE"
-        print_info "Added framebuffer_height=280"
+        echo "framebuffer_height=240" >> "$TEMP_FILE"
+        print_info "Added framebuffer_height=240 (240p)"
     fi
     
     # Verify the temp file is valid (basic sanity check)
@@ -259,7 +259,7 @@ configure_composite_video() {
     chmod 644 "$CONFIG_FILE"
     
     print_success "Composite video output configured"
-    print_info "Modified settings: enable_tvout=1, framebuffer_width=320, framebuffer_height=280"
+    print_info "Modified settings: enable_tvout=1, framebuffer_width=320, framebuffer_height=240 (240p)"
     print_info "All other settings preserved. Backup available at: $BACKUP_FILE"
     
     # Configure cmdline.txt to disable console on framebuffer

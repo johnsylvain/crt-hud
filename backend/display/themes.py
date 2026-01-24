@@ -11,9 +11,9 @@ COLOR_GRAY_LIGHT = (200, 200, 200)
 COLOR_GRAY_MEDIUM = (128, 128, 128)
 COLOR_GRAY_DARK = (64, 64, 64)
 
-# Display dimensions
+# Display dimensions (240p for better readability on composite video)
 DISPLAY_WIDTH = 320
-DISPLAY_HEIGHT = 280
+DISPLAY_HEIGHT = 240
 
 # Font settings - increased for better readability on CRT
 FONT_SIZE_LARGE = 28

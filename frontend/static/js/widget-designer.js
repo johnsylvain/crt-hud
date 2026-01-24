@@ -348,9 +348,9 @@ function setupCanvas() {
     if (!canvas) return;
     
     const ctx = canvas.getContext('2d');
-    // Set canvas size
+    // Set canvas size (240p for better readability)
     canvas.width = 320;
-    canvas.height = 280;
+    canvas.height = 240;
     
     // Fill with black background
     ctx.fillStyle = '#000000';
@@ -721,7 +721,7 @@ function createCanvasWidgetElement(widget) {
         div.classList.add('selected');
     }
     
-    // Position relative to canvas (320x280)
+    // Position relative to canvas (320x240)
     const x = widget.position?.x || 10;
     const y = widget.position?.y || 10;
     const width = widget.width || 100;
