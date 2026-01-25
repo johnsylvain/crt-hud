@@ -26,11 +26,11 @@ class SlideRenderer:
         self.theme = FalloutTheme()
         self.widget_registry = WidgetRendererRegistry(self.theme)
         # Use theme instance values for padding and line heights (supports font scaling)
-        self.self.PADDING = self.theme.padding
-        self.self.LINE_HEIGHT_LARGE = self.theme.line_heights["large"]
-        self.self.LINE_HEIGHT_MEDIUM = self.theme.line_heights["medium"]
-        self.self.LINE_HEIGHT_SMALL = self.theme.line_heights["small"]
-        self.self.LINE_HEIGHT_TINY = self.theme.line_heights["tiny"]
+        self.PADDING = self.theme.padding
+        self.LINE_HEIGHT_LARGE = self.theme.line_heights["large"]
+        self.LINE_HEIGHT_MEDIUM = self.theme.line_heights["medium"]
+        self.LINE_HEIGHT_SMALL = self.theme.line_heights["small"]
+        self.LINE_HEIGHT_TINY = self.theme.line_heights["tiny"]
     
     def _floyd_steinberg_dither(self, img: Image.Image) -> Image.Image:
         """
@@ -195,15 +195,15 @@ class SlideRenderer:
             return self._render_custom(slide_config or {}, data, title)
         
         # Draw title for other slide types
-        y = self.self.PADDING
+        y = self.PADDING
         if title:
             draw.text(
-                (self.self.PADDING, y),
+                (self.PADDING, y),
                 title.upper(),
                 fill=self.theme.colors["text"],
                 font=self.theme.fonts["large"]
             )
-            y += self.self.LINE_HEIGHT_LARGE + 4
+            y += self.LINE_HEIGHT_LARGE + 4
         
         # Render based on slide type
         if slide_type == "pihole_summary" and data:
@@ -212,7 +212,7 @@ class SlideRenderer:
             # For Plex, always render even if data is None or empty
             # (this allows showing "NO STREAMS" vs "NO DATA AVAILABLE")
             if data is None:
-                draw.text((self.self.PADDING, y), "NO DATA AVAILABLE", 
+                draw.text((self.PADDING, y), "NO DATA AVAILABLE", 
                          fill=self.theme.colors["text_muted"], font=self.theme.fonts["medium"])
             else:
                 y = self._render_plex(draw, data, y)
@@ -225,7 +225,7 @@ class SlideRenderer:
             y = self._render_weather(draw, data, y, temp_unit)
         else:
             draw.text(
-                (self.self.PADDING, y),
+                (self.PADDING, y),
                 "NO DATA AVAILABLE",
                 fill=self.theme.colors["text_muted"],
                 font=self.theme.fonts["medium"]
