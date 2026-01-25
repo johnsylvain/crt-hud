@@ -42,8 +42,11 @@ def get_font_scale() -> float:
             font_scale = 0.5
         elif font_scale > 3.0:
             font_scale = 3.0
+        # Always log font scale for debugging
+        print(f"[Theme] Font scale from config: {font_scale:.2f} (display_config: {display_config})")
         return font_scale
-    except Exception:
+    except Exception as e:
+        print(f"[Theme] Error getting font scale: {e}, using default 1.0")
         return 1.0
 
 
@@ -139,10 +142,8 @@ class FalloutTheme:
         # Get font scale from config
         self.font_scale = get_font_scale()
         
-        # Debug: print font scale when theme is created (only in dev mode to avoid spam)
-        import os
-        if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
-            print(f"[Theme] Font scale: {self.font_scale:.2f}")
+        # Always log font scale and sizes for debugging
+        print(f"[Theme] Creating theme with font_scale: {self.font_scale:.2f}")
         
         # Calculate scaled font sizes
         self.font_size_large = int(BASE_FONT_SIZE_LARGE * self.font_scale)
@@ -150,10 +151,7 @@ class FalloutTheme:
         self.font_size_small = int(BASE_FONT_SIZE_SMALL * self.font_scale)
         self.font_size_tiny = int(BASE_FONT_SIZE_TINY * self.font_scale)
         
-        # Debug: print actual font sizes being used
-        import os
-        if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
-            print(f"[Theme] Font sizes - Large: {self.font_size_large}, Medium: {self.font_size_medium}, Small: {self.font_size_small}, Tiny: {self.font_size_tiny}")
+        print(f"[Theme] Font sizes - Large: {self.font_size_large}, Medium: {self.font_size_medium}, Small: {self.font_size_small}, Tiny: {self.font_size_tiny}")
         
         # Calculate scaled layout constants
         self.padding = int(BASE_PADDING * self.font_scale)
@@ -169,11 +167,20 @@ class FalloutTheme:
             "text_muted": COLOR_GRAY_MEDIUM,
             "accent": COLOR_GRAY_LIGHT,
         }
+        # Create fonts with scaled sizes
+        font_large = get_monospace_font(self.font_size_large)
+        font_medium = get_monospace_font(self.font_size_medium)
+        font_small = get_monospace_font(self.font_size_small)
+        font_tiny = get_monospace_font(self.font_size_tiny)
+        
+        # Log actual font sizes (check if font supports size attribute)
+        print(f"[Theme] Created fonts - Large: {getattr(font_large, 'size', 'N/A')}, Medium: {getattr(font_medium, 'size', 'N/A')}, Small: {getattr(font_small, 'size', 'N/A')}, Tiny: {getattr(font_tiny, 'size', 'N/A')}")
+        
         self.fonts = {
-            "large": get_monospace_font(self.font_size_large),
-            "medium": get_monospace_font(self.font_size_medium),
-            "small": get_monospace_font(self.font_size_small),
-            "tiny": get_monospace_font(self.font_size_tiny),
+            "large": font_large,
+            "medium": font_medium,
+            "small": font_small,
+            "tiny": font_tiny,
         }
         self.line_heights = {
             "large": self.line_height_large,
