@@ -96,17 +96,39 @@ def get_monospace_font(size: int) -> ImageFont.FreeTypeFont:
                     continue
         
         # Fall back to system monospace font
-        try:
-            if sys.platform == 'darwin':
-                return ImageFont.truetype("/System/Library/Fonts/Menlo.ttc", size)
-            elif sys.platform == 'linux':
-                return ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", size)
-        except Exception:
-            pass
+        system_fonts = []
+        if sys.platform == 'darwin':
+            system_fonts = [
+                "/System/Library/Fonts/Menlo.ttc",
+                "/System/Library/Fonts/Supplemental/Courier New.ttf",
+                "/Library/Fonts/Courier New.ttf",
+            ]
+        elif sys.platform == 'linux':
+            system_fonts = [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+                "/usr/share/fonts/truetype/ttf-dejavu/DejaVuSansMono.ttf",
+            ]
         
-        # Final fallback to default font
-        return ImageFont.load_default()
-    except Exception:
+        for font_path in system_fonts:
+            try:
+                if Path(font_path).exists():
+                    font = ImageFont.truetype(font_path, size)
+                    import os
+                    if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
+                        print(f"[Theme] Loaded system font from {font_path} at size {size}")
+                    return font
+            except Exception as e:
+                import os
+                if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
+                    print(f"[Theme] Failed to load system font {font_path}: {e}")
+                continue
+        
+        # Final fallback: ImageFont.load_default() doesn't support size scaling
+        # This is a fixed-size bitmap font, so font scaling won't work if we reach here
+        import os
+        if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
+            print(f"[Theme] WARNING: Falling back to default font (size {size} will NOT be applied - default font is fixed-size)")
         return ImageFont.load_default()
 
 
@@ -127,6 +149,11 @@ class FalloutTheme:
         self.font_size_medium = int(BASE_FONT_SIZE_MEDIUM * self.font_scale)
         self.font_size_small = int(BASE_FONT_SIZE_SMALL * self.font_scale)
         self.font_size_tiny = int(BASE_FONT_SIZE_TINY * self.font_scale)
+        
+        # Debug: print actual font sizes being used
+        import os
+        if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
+            print(f"[Theme] Font sizes - Large: {self.font_size_large}, Medium: {self.font_size_medium}, Small: {self.font_size_small}, Tiny: {self.font_size_tiny}")
         
         # Calculate scaled layout constants
         self.padding = int(BASE_PADDING * self.font_scale)
