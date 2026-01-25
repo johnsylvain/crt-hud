@@ -14,7 +14,7 @@ try:
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
-from .themes import FalloutTheme, DISPLAY_WIDTH, DISPLAY_HEIGHT, PADDING, LINE_HEIGHT_LARGE, LINE_HEIGHT_MEDIUM, LINE_HEIGHT_SMALL, LINE_HEIGHT_TINY
+from .themes import FalloutTheme, DISPLAY_WIDTH, DISPLAY_HEIGHT
 from ..utils.helpers import format_bytes, format_duration, format_time_mmss, calculate_elapsed_time, draw_progress_bar
 from .widget_renderer import WidgetRendererRegistry
 
@@ -25,6 +25,12 @@ class SlideRenderer:
     def __init__(self):
         self.theme = FalloutTheme()
         self.widget_registry = WidgetRendererRegistry(self.theme)
+        # Use theme instance values for padding and line heights (supports font scaling)
+        self.self.PADDING = self.theme.padding
+        self.self.LINE_HEIGHT_LARGE = self.theme.line_heights["large"]
+        self.self.LINE_HEIGHT_MEDIUM = self.theme.line_heights["medium"]
+        self.self.LINE_HEIGHT_SMALL = self.theme.line_heights["small"]
+        self.self.LINE_HEIGHT_TINY = self.theme.line_heights["tiny"]
     
     def _floyd_steinberg_dither(self, img: Image.Image) -> Image.Image:
         """
@@ -189,15 +195,15 @@ class SlideRenderer:
             return self._render_custom(slide_config or {}, data, title)
         
         # Draw title for other slide types
-        y = PADDING
+        y = self.self.PADDING
         if title:
             draw.text(
-                (PADDING, y),
+                (self.self.PADDING, y),
                 title.upper(),
                 fill=self.theme.colors["text"],
                 font=self.theme.fonts["large"]
             )
-            y += LINE_HEIGHT_LARGE + 4
+            y += self.self.LINE_HEIGHT_LARGE + 4
         
         # Render based on slide type
         if slide_type == "pihole_summary" and data:
@@ -206,7 +212,7 @@ class SlideRenderer:
             # For Plex, always render even if data is None or empty
             # (this allows showing "NO STREAMS" vs "NO DATA AVAILABLE")
             if data is None:
-                draw.text((PADDING, y), "NO DATA AVAILABLE", 
+                draw.text((self.self.PADDING, y), "NO DATA AVAILABLE", 
                          fill=self.theme.colors["text_muted"], font=self.theme.fonts["medium"])
             else:
                 y = self._render_plex(draw, data, y)
@@ -219,7 +225,7 @@ class SlideRenderer:
             y = self._render_weather(draw, data, y, temp_unit)
         else:
             draw.text(
-                (PADDING, y),
+                (self.self.PADDING, y),
                 "NO DATA AVAILABLE",
                 fill=self.theme.colors["text_muted"],
                 font=self.theme.fonts["medium"]
@@ -237,26 +243,26 @@ class SlideRenderer:
         total = data.get("dns_queries_today", 0)
         percent = data.get("ads_percentage_today", 0.0)
         
-        draw.text((PADDING, y), f"BLOCKED: {blocked:,}", fill=self.theme.colors["text"], font=font_medium)
-        y += LINE_HEIGHT_MEDIUM
+        draw.text((self.PADDING, y), f"BLOCKED: {blocked:,}", fill=self.theme.colors["text"], font=font_medium)
+        y += self.LINE_HEIGHT_MEDIUM
         
-        draw.text((PADDING, y), f"TOTAL: {total:,}", fill=self.theme.colors["text_secondary"], font=font_medium)
-        y += LINE_HEIGHT_MEDIUM
+        draw.text((self.PADDING, y), f"TOTAL: {total:,}", fill=self.theme.colors["text_secondary"], font=font_medium)
+        y += self.LINE_HEIGHT_MEDIUM
         
         # Percentage bar
         bar_width = 35
         bar = draw_progress_bar(bar_width, percent, 100.0)
-        draw.text((PADDING, y), f"{percent:.1f}% {bar}", fill=self.theme.colors["text"], font=font_small)
-        y += LINE_HEIGHT_SMALL + 4
+        draw.text((self.PADDING, y), f"{percent:.1f}% {bar}", fill=self.theme.colors["text"], font=font_small)
+        y += self.LINE_HEIGHT_SMALL + 4
         
         # Domains blocked
         domains = data.get("domains_being_blocked", 0)
-        draw.text((PADDING, y), f"DOMAINS: {domains:,}", fill=self.theme.colors["text_secondary"], font=font_medium)
-        y += LINE_HEIGHT_MEDIUM
+        draw.text((self.PADDING, y), f"DOMAINS: {domains:,}", fill=self.theme.colors["text_secondary"], font=font_medium)
+        y += self.LINE_HEIGHT_MEDIUM
         
         # Unique clients
         clients = data.get("unique_clients", 0)
-        draw.text((PADDING, y), f"CLIENTS: {clients}", fill=self.theme.colors["text_secondary"], font=font_medium)
+        draw.text((self.PADDING, y), f"CLIENTS: {clients}", fill=self.theme.colors["text_secondary"], font=font_medium)
         
         return y
     
@@ -276,7 +282,7 @@ class SlideRenderer:
         print(f"Renderer: Sessions data: {sessions}")
         
         if not sessions:
-            draw.text((PADDING, y), "NO STREAMS", fill=self.theme.colors["text_muted"], font=font_medium)
+            draw.text((self.PADDING, y), "NO STREAMS", fill=self.theme.colors["text_muted"], font=font_medium)
             return y
         
         # Show up to 1 session with larger fonts (can split into multiple slides if needed)
@@ -290,15 +296,15 @@ class SlideRenderer:
         duration = session.get("duration", 0)  # milliseconds
         
         # User
-        draw.text((PADDING, y), f"{user}:", fill=self.theme.colors["text"], font=font_medium)
-        y += LINE_HEIGHT_MEDIUM
+        draw.text((self.PADDING, y), f"{user}:", fill=self.theme.colors["text"], font=font_medium)
+        y += self.LINE_HEIGHT_MEDIUM
         
         # Title (no truncation - show full title, wrap to multiple lines if needed)
-        max_title_width = DISPLAY_WIDTH - (PADDING * 2)
+        max_title_width = DISPLAY_WIDTH - (self.PADDING * 2)
         title_lines = self._wrap_text(title, font_small, max_title_width, draw)
         for line in title_lines:
-            draw.text((PADDING, y), line, fill=self.theme.colors["text_secondary"], font=font_small)
-            y += LINE_HEIGHT_SMALL
+            draw.text((self.PADDING, y), line, fill=self.theme.colors["text_secondary"], font=font_small)
+            y += self.LINE_HEIGHT_SMALL
         y += 4  # Extra spacing after title
         
         # For music tracks, show time/duration
@@ -306,20 +312,20 @@ class SlideRenderer:
             current_time = format_time_mmss(view_offset)
             total_time = format_time_mmss(duration)
             time_str = f"{current_time} / {total_time}"
-            draw.text((PADDING, y), time_str, fill=self.theme.colors["text"], font=font_small)
-            y += LINE_HEIGHT_SMALL + 2
+            draw.text((self.PADDING, y), time_str, fill=self.theme.colors["text"], font=font_small)
+            y += self.LINE_HEIGHT_SMALL + 2
         
         # Progress bar
         bar_width = 30
         bar = draw_progress_bar(bar_width, progress, 100.0)
         transcode_indicator = " [T]" if transcoding else ""
-        draw.text((PADDING, y), f"{progress:.0f}% {bar}{transcode_indicator}", 
+        draw.text((self.PADDING, y), f"{progress:.0f}% {bar}{transcode_indicator}", 
                  fill=self.theme.colors["text"], font=font_small)
-        y += LINE_HEIGHT_SMALL
+        y += self.LINE_HEIGHT_SMALL
         
         # Show indicator if more sessions exist
         if len(sessions) > 1:
-            draw.text((PADDING, y), f"+{len(sessions) - 1} more...", 
+            draw.text((self.PADDING, y), f"+{len(sessions) - 1} more...", 
                      fill=self.theme.colors["text_muted"], font=font_small)
         
         return y
@@ -340,12 +346,12 @@ class SlideRenderer:
         total_found = data.get("total_found", len(jobs))
         
         if not jobs:
-            draw.text((PADDING, y), "NO ACTIVE JOBS", 
+            draw.text((self.PADDING, y), "NO ACTIVE JOBS", 
                      fill=self.theme.colors["text_muted"], font=font_small)
-            return y + LINE_HEIGHT_SMALL
+            return y + self.LINE_HEIGHT_SMALL
         
         # Calculate space per job (compact layout)
-        available_height = DISPLAY_HEIGHT - y - PADDING
+        available_height = DISPLAY_HEIGHT - y - self.PADDING
         job_spacing = 4  # Minimal spacing between jobs
         jobs_per_slide = min(3, len(jobs))
         space_per_job = (available_height - (job_spacing * (jobs_per_slide - 1))) // jobs_per_slide
@@ -353,7 +359,7 @@ class SlideRenderer:
         # Render each job in exactly 3 lines
         for idx, job in enumerate(jobs):
             # Check if we have space for 3 more lines
-            if y + (LINE_HEIGHT_TINY * 3) > DISPLAY_HEIGHT - PADDING:
+            if y + (self.LINE_HEIGHT_TINY * 3) > DISPLAY_HEIGHT - self.PADDING:
                 break  # No more space
             
             # Get job data
@@ -395,11 +401,11 @@ class SlideRenderer:
                 operation = "PROCESSING"
             
             # Line 1: Title (truncate to fit)
-            max_title_width = DISPLAY_WIDTH - (PADDING * 2)
+            max_title_width = DISPLAY_WIDTH - (self.PADDING * 2)
             max_title_chars = 35  # Approx chars that fit in tiny font
             display_title = title[:max_title_chars] + "..." if len(title) > max_title_chars else title
-            draw.text((PADDING, y), display_title, fill=self.theme.colors["text"], font=font_tiny)
-            y += LINE_HEIGHT_TINY
+            draw.text((self.PADDING, y), display_title, fill=self.theme.colors["text"], font=font_tiny)
+            y += self.LINE_HEIGHT_TINY
             
             # Line 2: Progress bar + Operation/Status
             bar_width = 20
@@ -419,8 +425,8 @@ class SlideRenderer:
             
             # Combine progress and operation
             line2 = f"{progress_text} | {operation_display}"
-            draw.text((PADDING, y), line2, fill=self.theme.colors["text_secondary"], font=font_tiny)
-            y += LINE_HEIGHT_TINY
+            draw.text((self.PADDING, y), line2, fill=self.theme.colors["text_secondary"], font=font_tiny)
+            y += self.LINE_HEIGHT_TINY
             
             # Line 3: Most relevant additional info (elapsed time preferred, then disc type)
             line3 = ""
@@ -432,24 +438,24 @@ class SlideRenderer:
                 line3 = f"Type: {disctype}"
             
             if line3:
-                draw.text((PADDING, y), line3, fill=self.theme.colors["text_muted"], font=font_tiny)
-            y += LINE_HEIGHT_TINY
+                draw.text((self.PADDING, y), line3, fill=self.theme.colors["text_muted"], font=font_tiny)
+            y += self.LINE_HEIGHT_TINY
             
             # Add separator line between jobs (except last)
             if idx < len(jobs) - 1:
                 # Draw a subtle separator
-                draw.line([(PADDING, y), (DISPLAY_WIDTH - PADDING, y)], 
+                draw.line([(self.PADDING, y), (DISPLAY_WIDTH - self.PADDING, y)], 
                          fill=self.theme.colors["text_muted"], width=1)
                 y += job_spacing
         
         # Show count if there are more jobs than displayed
         if total_found > len(jobs):
             more_count = total_found - len(jobs)
-            draw.text((PADDING, DISPLAY_HEIGHT - PADDING - LINE_HEIGHT_TINY), 
+            draw.text((self.PADDING, DISPLAY_HEIGHT - self.PADDING - self.LINE_HEIGHT_TINY), 
                      f"+{more_count} more job(s)...", 
                      fill=self.theme.colors["text_muted"], font=font_tiny)
         
-        return min(y, DISPLAY_HEIGHT - PADDING)
+        return min(y, DISPLAY_HEIGHT - self.PADDING)
     
     def _render_system(self, draw: ImageDraw.Draw, data: Dict[str, Any], y: int) -> int:
         """Render system stats (CPU, Memory, NAS storage)."""
@@ -460,14 +466,14 @@ class SlideRenderer:
         # CPU
         cpu_data = data.get("cpu", {})
         cpu_percent = cpu_data.get("percent", 0)
-        draw.text((PADDING, y), f"CPU: {cpu_percent:.1f}%", fill=self.theme.colors["text"], font=font_medium)
-        y += LINE_HEIGHT_MEDIUM
+        draw.text((self.PADDING, y), f"CPU: {cpu_percent:.1f}%", fill=self.theme.colors["text"], font=font_medium)
+        y += self.LINE_HEIGHT_MEDIUM
         
         # CPU progress bar on separate line
         cpu_bar = draw_progress_bar(bar_width, cpu_percent, 100.0)
-        draw.text((PADDING, y), cpu_bar, 
+        draw.text((self.PADDING, y), cpu_bar, 
                  fill=self.theme.colors["text"], font=font_small)
-        y += LINE_HEIGHT_SMALL + 4
+        y += self.LINE_HEIGHT_SMALL + 4
         
         # Memory
         mem_data = data.get("memory", {})
@@ -479,15 +485,15 @@ class SlideRenderer:
         mem_total_str = format_bytes(mem_total)
         
         # Memory text on one line
-        draw.text((PADDING, y), f"MEM: {mem_used_str} / {mem_total_str}", 
+        draw.text((self.PADDING, y), f"MEM: {mem_used_str} / {mem_total_str}", 
                  fill=self.theme.colors["text"], font=font_medium)
-        y += LINE_HEIGHT_MEDIUM
+        y += self.LINE_HEIGHT_MEDIUM
         
         # Memory progress bar on separate line
         mem_bar = draw_progress_bar(bar_width, mem_percent, 100.0)
-        draw.text((PADDING, y), mem_bar, 
+        draw.text((self.PADDING, y), mem_bar, 
                  fill=self.theme.colors["text"], font=font_small)
-        y += LINE_HEIGHT_SMALL + 4
+        y += self.LINE_HEIGHT_SMALL + 4
         
         # Disk/NAS storage - show only 1 disk per slide for better readability
         disks = data.get("disks", [])
@@ -507,23 +513,23 @@ class SlideRenderer:
             disk_total_str = format_bytes(disk_total)
             
             # Path label
-            draw.text((PADDING, y), f"{path_label}:", 
+            draw.text((self.PADDING, y), f"{path_label}:", 
                      fill=self.theme.colors["text"], font=font_medium)
-            y += LINE_HEIGHT_MEDIUM
+            y += self.LINE_HEIGHT_MEDIUM
             
             # Usage on separate line
-            draw.text((PADDING, y), f"{disk_used_str} / {disk_total_str}", 
+            draw.text((self.PADDING, y), f"{disk_used_str} / {disk_total_str}", 
                      fill=self.theme.colors["text_secondary"], font=font_small)
-            y += LINE_HEIGHT_SMALL
+            y += self.LINE_HEIGHT_SMALL
             
             # Percentage and bar on separate line
             disk_bar = draw_progress_bar(bar_width, disk_percent, 100.0)
-            draw.text((PADDING, y), f"{disk_percent:.1f}% {disk_bar}", 
+            draw.text((self.PADDING, y), f"{disk_percent:.1f}% {disk_bar}", 
                      fill=self.theme.colors["text"], font=font_small)
-            y += LINE_HEIGHT_SMALL
+            y += self.LINE_HEIGHT_SMALL
             
             if len(disks) > 1:
-                draw.text((PADDING, y), f"+{len(disks) - 1} more disk(s)...", 
+                draw.text((self.PADDING, y), f"+{len(disks) - 1} more disk(s)...", 
                          fill=self.theme.colors["text_muted"], font=font_small)
         
         return y
@@ -556,29 +562,29 @@ class SlideRenderer:
             temp_symbol = "°C"
         
         # Temperature line
-        draw.text((PADDING, y), f"{temp_display:.0f}{temp_symbol}", fill=self.theme.colors["text"], font=font_medium)
-        y += LINE_HEIGHT_MEDIUM
+        draw.text((self.PADDING, y), f"{temp_display:.0f}{temp_symbol}", fill=self.theme.colors["text"], font=font_medium)
+        y += self.LINE_HEIGHT_MEDIUM
         
         # Condition
-        max_condition_width = DISPLAY_WIDTH - (PADDING * 2)
+        max_condition_width = DISPLAY_WIDTH - (self.PADDING * 2)
         condition_lines = self._wrap_text(condition, font_small, max_condition_width, draw)
         for line in condition_lines:
-            draw.text((PADDING, y), line, fill=self.theme.colors["text_secondary"], font=font_small)
-            y += LINE_HEIGHT_SMALL
+            draw.text((self.PADDING, y), line, fill=self.theme.colors["text_secondary"], font=font_small)
+            y += self.LINE_HEIGHT_SMALL
         y += 2
         
         # Feels like
         if feelslike_c != temp_c:
-            draw.text((PADDING, y), f"FEELS: {feelslike_display:.0f}{temp_symbol}", 
+            draw.text((self.PADDING, y), f"FEELS: {feelslike_display:.0f}{temp_symbol}", 
                      fill=self.theme.colors["text_secondary"], font=font_small)
-            y += LINE_HEIGHT_SMALL
+            y += self.LINE_HEIGHT_SMALL
         
         # Humidity and wind
         humidity = current.get("humidity", 0)
         wind_kph = current.get("wind_kph", 0)
-        draw.text((PADDING, y), f"H: {humidity}% W: {wind_kph:.0f}km/h", 
+        draw.text((self.PADDING, y), f"H: {humidity}% W: {wind_kph:.0f}km/h", 
                  fill=self.theme.colors["text_secondary"], font=font_small)
-        y += LINE_HEIGHT_SMALL + 4
+        y += self.LINE_HEIGHT_SMALL + 4
         
         # Forecast (show up to 2 days to fit on screen)
         if forecast:
@@ -615,13 +621,13 @@ class SlideRenderer:
                 if chance_rain > 0:
                     forecast_line += f" [{chance_rain}%]"
                 
-                draw.text((PADDING, y), forecast_line, 
+                draw.text((self.PADDING, y), forecast_line, 
                          fill=self.theme.colors["text"], font=font_small)
-                y += LINE_HEIGHT_SMALL
+                y += self.LINE_HEIGHT_SMALL
             
             # Show indicator if more forecast days exist
             if len(forecast) > 2:
-                draw.text((PADDING, y), f"+{len(forecast) - 2} more day(s)...", 
+                draw.text((self.PADDING, y), f"+{len(forecast) - 2} more day(s)...", 
                          fill=self.theme.colors["text_muted"], font=font_small)
         
         return y
@@ -631,7 +637,7 @@ class SlideRenderer:
         if not slide_config:
             draw = ImageDraw.Draw(img)
             draw.text(
-                (PADDING, PADDING),
+                (self.PADDING, self.PADDING),
                 "NO IMAGE CONFIGURED",
                 fill=self.theme.colors["text_muted"],
                 font=self.theme.fonts["medium"]
@@ -643,7 +649,7 @@ class SlideRenderer:
         if not image_path:
             draw = ImageDraw.Draw(img)
             draw.text(
-                (PADDING, PADDING),
+                (self.PADDING, self.PADDING),
                 "NO IMAGE PATH",
                 fill=self.theme.colors["text_muted"],
                 font=self.theme.fonts["medium"]
@@ -692,7 +698,7 @@ class SlideRenderer:
                     error_msg = f"NOT FOUND: {Path(image_path).name}\nFound: {', '.join(found_names[:2])}"
                 
                 draw.text(
-                    (PADDING, PADDING),
+                    (self.PADDING, self.PADDING),
                     error_msg,
                     fill=self.theme.colors["text_muted"],
                     font=self.theme.fonts["small"]
@@ -797,7 +803,7 @@ class SlideRenderer:
             draw = ImageDraw.Draw(img)
             error_msg = f"ERROR LOADING IMAGE: {str(e)[:40]}"
             draw.text(
-                (PADDING, PADDING),
+                (self.PADDING, self.PADDING),
                 error_msg,
                 fill=self.theme.colors["text_muted"],
                 font=self.theme.fonts["small"]
@@ -809,7 +815,7 @@ class SlideRenderer:
         text_content = slide_config.get("text", "")
         if not text_content:
             draw.text(
-                (PADDING, PADDING),
+                (self.PADDING, self.PADDING),
                 "NO TEXT CONTENT",
                 fill=self.theme.colors["text_muted"],
                 font=self.theme.fonts["medium"]
@@ -833,11 +839,11 @@ class SlideRenderer:
         
         # Get line height based on font size
         line_height_map = {
-            "small": LINE_HEIGHT_SMALL,
-            "medium": LINE_HEIGHT_MEDIUM,
-            "large": LINE_HEIGHT_LARGE
+            "small": self.LINE_HEIGHT_SMALL,
+            "medium": self.LINE_HEIGHT_MEDIUM,
+            "large": self.LINE_HEIGHT_LARGE
         }
-        line_height = line_height_map.get(font_size_key, LINE_HEIGHT_MEDIUM)
+        line_height = line_height_map.get(font_size_key, self.LINE_HEIGHT_MEDIUM)
         
         # Get text color
         text_color = self.theme.colors.get(text_color_key, self.theme.colors["text"])
@@ -847,7 +853,7 @@ class SlideRenderer:
         
         # Wrap long lines if needed
         wrapped_lines = []
-        max_width = DISPLAY_WIDTH - (PADDING * 2)
+        max_width = DISPLAY_WIDTH - (self.PADDING * 2)
         for line in text_lines:
             if line.strip():
                 wrapped = self._wrap_text(line, font, max_width, draw)
@@ -860,20 +866,20 @@ class SlideRenderer:
         total_text_height = len(wrapped_lines) * line_height
         
         # Calculate available space (full canvas height minus padding)
-        available_height = DISPLAY_HEIGHT - (PADDING * 2)
+        available_height = DISPLAY_HEIGHT - (self.PADDING * 2)
         
         # Calculate starting Y position based on vertical alignment
         # Vertical alignment uses full canvas (no title)
         if vertical_align == "top":
-            start_y = PADDING
+            start_y = self.PADDING
         elif vertical_align == "bottom":
-            start_y = DISPLAY_HEIGHT - total_text_height - PADDING
+            start_y = DISPLAY_HEIGHT - total_text_height - self.PADDING
         else:  # center (default)
             # Center within full canvas
-            start_y = PADDING + max(0, (available_height - total_text_height) // 2)
+            start_y = self.PADDING + max(0, (available_height - total_text_height) // 2)
         
-        # Ensure start_y is at least PADDING
-        start_y = max(PADDING, start_y)
+        # Ensure start_y is at least self.PADDING
+        start_y = max(self.PADDING, start_y)
         
         # Render each line
         current_y = start_y
@@ -896,19 +902,19 @@ class SlideRenderer:
             if text_align == "center":
                 x = (DISPLAY_WIDTH - line_width) // 2
             elif text_align == "right":
-                x = DISPLAY_WIDTH - line_width - PADDING
+                x = DISPLAY_WIDTH - line_width - self.PADDING
             else:  # left (default)
-                x = PADDING
+                x = self.PADDING
             
             # Ensure x is within bounds
-            x = max(PADDING, min(x, DISPLAY_WIDTH - PADDING))
+            x = max(self.PADDING, min(x, DISPLAY_WIDTH - self.PADDING))
             
             # Draw the line
             draw.text((x, current_y), line, fill=text_color, font=font)
             current_y += line_height
             
             # Stop if we've gone beyond the display height
-            if current_y > DISPLAY_HEIGHT - PADDING:
+            if current_y > DISPLAY_HEIGHT - self.PADDING:
                 break
     
     def _render_clock(self, img: Image.Image, draw: ImageDraw.Draw, slide_config: Dict[str, Any], title: str = "") -> None:
@@ -955,11 +961,11 @@ class SlideRenderer:
         
         # Get line heights
         line_height_map = {
-            "small": LINE_HEIGHT_SMALL,
-            "medium": LINE_HEIGHT_MEDIUM,
-            "large": LINE_HEIGHT_LARGE
+            "small": self.LINE_HEIGHT_SMALL,
+            "medium": self.LINE_HEIGHT_MEDIUM,
+            "large": self.LINE_HEIGHT_LARGE
         }
-        time_line_height = line_height_map.get(font_size_key, LINE_HEIGHT_LARGE)
+        time_line_height = line_height_map.get(font_size_key, self.LINE_HEIGHT_LARGE)
         
         # Calculate text widths for alignment
         if hasattr(time_font, 'getlength'):
@@ -978,32 +984,32 @@ class SlideRenderer:
         # Calculate total height of clock content
         total_height = time_line_height
         if date_str:
-            total_height += LINE_HEIGHT_MEDIUM + 8  # Date plus spacing
+            total_height += self.LINE_HEIGHT_MEDIUM + 8  # Date plus spacing
         
         # Calculate available space
-        available_height = DISPLAY_HEIGHT - (PADDING * 2)
+        available_height = DISPLAY_HEIGHT - (self.PADDING * 2)
         
         # Calculate starting Y position based on vertical alignment
         if vertical_align == "top":
-            start_y = PADDING
+            start_y = self.PADDING
         elif vertical_align == "bottom":
-            start_y = DISPLAY_HEIGHT - total_height - PADDING
+            start_y = DISPLAY_HEIGHT - total_height - self.PADDING
         else:  # center (default)
-            start_y = PADDING + max(0, (available_height - total_height) // 2)
+            start_y = self.PADDING + max(0, (available_height - total_height) // 2)
         
-        # Ensure start_y is at least PADDING
-        start_y = max(PADDING, start_y)
+        # Ensure start_y is at least self.PADDING
+        start_y = max(self.PADDING, start_y)
         
         # Calculate X position for time based on horizontal alignment
         if time_align == "center":
             time_x = (DISPLAY_WIDTH - time_width) // 2
         elif time_align == "right":
-            time_x = DISPLAY_WIDTH - time_width - PADDING
+            time_x = DISPLAY_WIDTH - time_width - self.PADDING
         else:  # left (default)
-            time_x = PADDING
+            time_x = self.PADDING
         
         # Ensure time_x is within bounds
-        time_x = max(PADDING, min(time_x, DISPLAY_WIDTH - PADDING))
+        time_x = max(self.PADDING, min(time_x, DISPLAY_WIDTH - self.PADDING))
         
         # Draw time
         draw.text((time_x, start_y), time_str, fill=self.theme.colors["text"], font=time_font)
@@ -1014,12 +1020,12 @@ class SlideRenderer:
             if time_align == "center":
                 date_x = (DISPLAY_WIDTH - date_width) // 2
             elif time_align == "right":
-                date_x = DISPLAY_WIDTH - date_width - PADDING
+                date_x = DISPLAY_WIDTH - date_width - self.PADDING
             else:  # left
-                date_x = PADDING
+                date_x = self.PADDING
             
             # Ensure date_x is within bounds
-            date_x = max(PADDING, min(date_x, DISPLAY_WIDTH - PADDING))
+            date_x = max(self.PADDING, min(date_x, DISPLAY_WIDTH - self.PADDING))
             
             draw.text((date_x, current_y), date_str, fill=self.theme.colors["text_secondary"], font=date_font)
     
@@ -1039,15 +1045,15 @@ class SlideRenderer:
         draw = ImageDraw.Draw(img)
         
         # Draw title if provided
-        y = PADDING
+        y = self.PADDING
         if title:
             draw.text(
-                (PADDING, y),
+                (self.PADDING, y),
                 title.upper(),
                 fill=self.theme.colors["text"],
                 font=self.theme.fonts["large"]
             )
-            y += LINE_HEIGHT_LARGE + 4
+            y += self.LINE_HEIGHT_LARGE + 4
         
         # Get layout configuration
         layout_config = slide_config.get("layout", {})
@@ -1056,7 +1062,7 @@ class SlideRenderer:
         if not widgets:
             # No widgets configured
             draw.text(
-                (PADDING, y),
+                (self.PADDING, y),
                 "NO WIDGETS CONFIGURED",
                 fill=self.theme.colors["text_muted"],
                 font=self.theme.fonts["medium"]
@@ -1071,7 +1077,7 @@ class SlideRenderer:
             data = {}
         
         # Render widgets (pass title height for positioning)
-        title_height = LINE_HEIGHT_LARGE + 4 if title else 0
+        title_height = self.LINE_HEIGHT_LARGE + 4 if title else 0
         self._render_widgets(widgets, layout, data, draw, title_height)
         
         return img
@@ -1141,7 +1147,7 @@ class SlideRenderer:
         
         # If no layout containers defined, create a default full-screen container
         if not layout:
-            layout["default"] = (PADDING, PADDING, display_width - (PADDING * 2), display_height - (PADDING * 2))
+            layout["default"] = (self.PADDING, self.PADDING, display_width - (self.PADDING * 2), display_height - (self.PADDING * 2))
         
         return layout
     
@@ -1171,7 +1177,7 @@ class SlideRenderer:
             widget_y = position.get("y", 0)
             
             # Get container bounds
-            container_bounds = layout.get(container_id, (PADDING, PADDING, DISPLAY_WIDTH - (PADDING * 2), DISPLAY_HEIGHT - (PADDING * 2)))
+            container_bounds = layout.get(container_id, (self.PADDING, self.PADDING, DISPLAY_WIDTH - (self.PADDING * 2), DISPLAY_HEIGHT - (self.PADDING * 2)))
             container_x, container_y, container_width, container_height = container_bounds
             
             # Calculate widget bounds (relative to container, but absolute on canvas)

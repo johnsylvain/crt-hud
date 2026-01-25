@@ -2023,9 +2023,42 @@ function renderConfig() {
         `;
         container.appendChild(noteDiv);
         
-        // Only show application-wide configs (like weather API key if needed)
-        // For now, weather uses wttr.in which doesn't need an API key
-        // If we add other application-wide settings in the future, add them here
+        // Display settings (font scale)
+        const displayConfig = config.display || { font_scale: 1.0 };
+        const displaySection = document.createElement('div');
+        displaySection.className = 'config-section';
+        displaySection.style.cssText = 'margin-bottom: 24px; padding: 16px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;';
+        displaySection.innerHTML = `
+            <h3 style="margin-top: 0; margin-bottom: 16px;">Display Settings</h3>
+            <div class="config-row" style="margin-bottom: 12px;">
+                <label for="config_display_font_scale" style="display: block; margin-bottom: 4px; font-weight: bold;">
+                    Font Scale:
+                </label>
+                <input type="number" 
+                       id="config_display_font_scale" 
+                       value="${displayConfig.font_scale || 1.0}" 
+                       min="0.5" 
+                       max="3.0" 
+                       step="0.1"
+                       style="width: 100px; padding: 6px; margin-right: 8px;">
+                <span id="font_scale_value" style="color: #666; font-size: 13px;">${(displayConfig.font_scale || 1.0) * 100}%</span>
+                <small style="display: block; color: #666; margin-top: 4px; font-size: 12px;">
+                    Adjust the global font size multiplier. 1.0 = default size, 1.5 = 50% larger, 2.0 = double size, etc.
+                    <br>Range: 0.5 to 3.0. Changes take effect on the next slide render.
+                </small>
+            </div>
+        `;
+        container.appendChild(displaySection);
+        
+        // Update font scale value display on input
+        const fontScaleInput = document.getElementById('config_display_font_scale');
+        const fontScaleValue = document.getElementById('font_scale_value');
+        if (fontScaleInput && fontScaleValue) {
+            fontScaleInput.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value) || 1.0;
+                fontScaleValue.textContent = `${(value * 100).toFixed(0)}%`;
+            });
+        }
     }, 50);
 }
 
@@ -2092,8 +2125,14 @@ async function saveConfig() {
     const saveBtn = document.getElementById('saveConfigBtn');
     setButtonLoading(saveBtn, true);
     
-    // Application-wide configuration (minimal - only weather if needed in future)
+    // Application-wide configuration
+    const fontScaleInput = document.getElementById('config_display_font_scale');
+    const fontScale = fontScaleInput ? parseFloat(fontScaleInput.value) || 1.0 : (config.display?.font_scale || 1.0);
+    
     const newConfig = {
+        display: {
+            font_scale: Math.max(0.5, Math.min(3.0, fontScale))  // Clamp between 0.5 and 3.0
+        },
         weather: config.weather || {},  // Keep weather config if present
         // Other application-wide settings can be added here
     };

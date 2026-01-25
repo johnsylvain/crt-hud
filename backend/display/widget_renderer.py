@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Tuple, Optional
 from PIL import Image, ImageDraw
 
-from .themes import FalloutTheme, DISPLAY_WIDTH, DISPLAY_HEIGHT, PADDING, LINE_HEIGHT_LARGE, LINE_HEIGHT_MEDIUM, LINE_HEIGHT_SMALL, LINE_HEIGHT_TINY
+from .themes import FalloutTheme, DISPLAY_WIDTH, DISPLAY_HEIGHT
 from ..utils.data_binding import extract_path, format_template, format_value, evaluate_condition
 from ..utils.helpers import draw_progress_bar
 
@@ -164,11 +164,11 @@ class TextWidgetRenderer(WidgetRenderer):
             x = x + width - int(text_width)
         
         # Wrap text if needed
-        max_width = width - PADDING
+        max_width = width - self.theme.padding
         lines = self._wrap_text(text, font, max_width, draw)
         
         # Draw lines
-        line_height = self.theme.line_heights.get(font_size, LINE_HEIGHT_MEDIUM)
+        line_height = self.theme.line_heights.get(font_size, self.theme.line_heights["medium"])
         current_y = y
         
         for line in lines:

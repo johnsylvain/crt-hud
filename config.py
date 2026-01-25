@@ -82,6 +82,9 @@ def get_default_slides_config() -> Dict[str, Any]:
 def get_default_api_config() -> Dict[str, Any]:
     """Return default API configuration."""
     return {
+        "display": {
+            "font_scale": 1.0  # Global font scale multiplier (1.0 = default, 1.5 = 50% larger, etc.)
+        },
         "arm": {
             "enabled": True,
             "api_url": "http://localhost:8080",

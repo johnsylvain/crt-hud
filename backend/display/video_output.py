@@ -82,7 +82,7 @@ class WindowPreviewOutput(VideoOutput):
             
             # Window size (scaled up for visibility)
             width = 320 * self.scale
-            height = 240 * self.scale  # 240p
+            height = 280 * self.scale
             
             self.screen = pygame.display.set_mode((width, height))
             pygame.display.set_caption("Homelab HUD Preview")
@@ -110,11 +110,11 @@ class WindowPreviewOutput(VideoOutput):
                 image = image.convert("RGB")
             
             # Scale image
-            scaled_image = image.resize((320 * self.scale, 240 * self.scale), Image.NEAREST)
+            scaled_image = image.resize((320 * self.scale, 280 * self.scale), Image.NEAREST)
             
             # Convert to pygame surface
             img_str = scaled_image.tobytes()
-            pygame_surface = pygame.image.fromstring(img_str, (320 * self.scale, 240 * self.scale), "RGB")
+            pygame_surface = pygame.image.fromstring(img_str, (320 * self.scale, 280 * self.scale), "RGB")
             
             self.screen.blit(pygame_surface, (0, 0))
             pygame.display.flip()
@@ -146,7 +146,7 @@ class FramebufferOutput(VideoOutput):
         self.fb = None
         self._initialized = False
         self.fb_width = 320
-        self.fb_height = 240  # 240p for better readability on composite video
+        self.fb_height = 280
         self.fb_bpp = 16  # RGB565 format for composite video
     
     def initialize(self) -> bool:
