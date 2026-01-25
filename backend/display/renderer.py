@@ -23,6 +23,12 @@ class SlideRenderer:
     """Renderer for creating slide images."""
     
     def __init__(self):
+        self.theme = None
+        self.widget_registry = None
+        self._refresh_theme()
+    
+    def _refresh_theme(self):
+        """Refresh theme instance to pick up latest config (e.g., font_scale changes)."""
         self.theme = FalloutTheme()
         self.widget_registry = WidgetRendererRegistry(self.theme)
         # Use theme instance values for padding and line heights (supports font scaling)
@@ -172,6 +178,9 @@ class SlideRenderer:
         Returns:
             PIL Image object
         """
+        # Refresh theme to pick up latest config (e.g., font_scale changes)
+        self._refresh_theme()
+        
         img = self.theme.create_image()
         draw = ImageDraw.Draw(img)
         

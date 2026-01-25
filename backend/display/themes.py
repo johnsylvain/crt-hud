@@ -117,6 +117,11 @@ class FalloutTheme:
         # Get font scale from config
         self.font_scale = get_font_scale()
         
+        # Debug: print font scale when theme is created (only in dev mode to avoid spam)
+        import os
+        if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
+            print(f"[Theme] Font scale: {self.font_scale:.2f}")
+        
         # Calculate scaled font sizes
         self.font_size_large = int(BASE_FONT_SIZE_LARGE * self.font_scale)
         self.font_size_medium = int(BASE_FONT_SIZE_MEDIUM * self.font_scale)
