@@ -3,6 +3,7 @@
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
 import sys
+from typing import Dict
 from config import get_api_config
 
 # Fallout color palette (monochrome for CRT)
@@ -48,6 +49,41 @@ def get_font_scale() -> float:
     except Exception as e:
         print(f"[Theme] Error getting font scale: {e}, using default 1.0")
         return 1.0
+
+
+def get_padding_config() -> Dict[str, int]:
+    """Get padding configuration from config, with defaults."""
+    try:
+        api_config = get_api_config()
+        display_config = api_config.get("display", {})
+        padding_config = display_config.get("padding", {})
+        
+        # Get individual padding values, defaulting to BASE_PADDING scaled by font_scale
+        font_scale = get_font_scale()
+        default_padding = int(BASE_PADDING * font_scale)
+        
+        padding = {
+            "top": int(padding_config.get("top", default_padding)),
+            "bottom": int(padding_config.get("bottom", default_padding)),
+            "left": int(padding_config.get("left", default_padding)),
+            "right": int(padding_config.get("right", default_padding))
+        }
+        
+        # Ensure padding values are non-negative and reasonable (0-100 pixels)
+        for key in padding:
+            padding[key] = max(0, min(100, padding[key]))
+        
+        return padding
+    except Exception as e:
+        print(f"[Theme] Error getting padding config: {e}, using defaults")
+        font_scale = get_font_scale()
+        default_padding = int(BASE_PADDING * font_scale)
+        return {
+            "top": default_padding,
+            "bottom": default_padding,
+            "left": default_padding,
+            "right": default_padding
+        }
 
 
 # Scaled font settings (computed from base values and font_scale)
@@ -133,6 +169,11 @@ def get_monospace_font(size: int) -> ImageFont.FreeTypeFont:
         if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
             print(f"[Theme] WARNING: Falling back to default font (size {size} will NOT be applied - default font is fixed-size)")
         return ImageFont.load_default()
+    except Exception as e:
+        import os
+        if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
+            print(f"[Theme] Error in get_monospace_font: {e}")
+        return ImageFont.load_default()
 
 
 class FalloutTheme:
@@ -153,8 +194,19 @@ class FalloutTheme:
         
         print(f"[Theme] Font sizes - Large: {self.font_size_large}, Medium: {self.font_size_medium}, Small: {self.font_size_small}, Tiny: {self.font_size_tiny}")
         
+        # Get padding configuration from config
+        padding_config = get_padding_config()
+        self.padding_top = padding_config["top"]
+        self.padding_bottom = padding_config["bottom"]
+        self.padding_left = padding_config["left"]
+        self.padding_right = padding_config["right"]
+        
+        # For backward compatibility, keep self.padding as the left padding (most common use case)
+        self.padding = self.padding_left
+        
+        print(f"[Theme] Padding - Top: {self.padding_top}, Bottom: {self.padding_bottom}, Left: {self.padding_left}, Right: {self.padding_right}")
+        
         # Calculate scaled layout constants
-        self.padding = int(BASE_PADDING * self.font_scale)
         self.line_height_large = int(BASE_LINE_HEIGHT_LARGE * self.font_scale)
         self.line_height_medium = int(BASE_LINE_HEIGHT_MEDIUM * self.font_scale)
         self.line_height_small = int(BASE_LINE_HEIGHT_SMALL * self.font_scale)

@@ -83,7 +83,13 @@ def get_default_api_config() -> Dict[str, Any]:
     """Return default API configuration."""
     return {
         "display": {
-            "font_scale": 1.0  # Global font scale multiplier (1.0 = default, 1.5 = 50% larger, etc.)
+            "font_scale": 1.0,  # Global font scale multiplier (1.0 = default, 1.5 = 50% larger, etc.)
+            "padding": {
+                "top": 12,
+                "bottom": 12,
+                "left": 12,
+                "right": 12
+            }
         },
         "arm": {
             "enabled": True,

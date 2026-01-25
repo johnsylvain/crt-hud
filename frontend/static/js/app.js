@@ -2023,8 +2023,9 @@ function renderConfig() {
         `;
         container.appendChild(noteDiv);
         
-        // Display settings (font scale)
-        const displayConfig = config.display || { font_scale: 1.0 };
+        // Display settings (font scale and padding)
+        const displayConfig = config.display || { font_scale: 1.0, padding: { top: 12, bottom: 12, left: 12, right: 12 } };
+        const paddingConfig = displayConfig.padding || { top: 12, bottom: 12, left: 12, right: 12 };
         const displaySection = document.createElement('div');
         displaySection.className = 'config-section';
         displaySection.style.cssText = 'margin-bottom: 24px; padding: 16px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;';
@@ -2045,6 +2046,57 @@ function renderConfig() {
                 <small style="display: block; color: #666; margin-top: 4px; font-size: 12px;">
                     Adjust the global font size multiplier. 1.0 = default size, 1.5 = 50% larger, 2.0 = double size, etc.
                     <br>Range: 0.5 to 3.0. Changes take effect on the next slide render.
+                </small>
+            </div>
+            <div class="config-row" style="margin-bottom: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #ddd;">
+                <label style="display: block; margin-bottom: 8px; font-weight: bold;">
+                    Slide Padding (pixels):
+                </label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 8px;">
+                    <div>
+                        <label for="config_display_padding_top" style="display: block; margin-bottom: 4px; font-size: 13px;">Top:</label>
+                        <input type="number" 
+                               id="config_display_padding_top" 
+                               value="${paddingConfig.top || 12}" 
+                               min="0" 
+                               max="100" 
+                               step="1"
+                               style="width: 100%; padding: 6px;">
+                    </div>
+                    <div>
+                        <label for="config_display_padding_bottom" style="display: block; margin-bottom: 4px; font-size: 13px;">Bottom:</label>
+                        <input type="number" 
+                               id="config_display_padding_bottom" 
+                               value="${paddingConfig.bottom || 12}" 
+                               min="0" 
+                               max="100" 
+                               step="1"
+                               style="width: 100%; padding: 6px;">
+                    </div>
+                    <div>
+                        <label for="config_display_padding_left" style="display: block; margin-bottom: 4px; font-size: 13px;">Left:</label>
+                        <input type="number" 
+                               id="config_display_padding_left" 
+                               value="${paddingConfig.left || 12}" 
+                               min="0" 
+                               max="100" 
+                               step="1"
+                               style="width: 100%; padding: 6px;">
+                    </div>
+                    <div>
+                        <label for="config_display_padding_right" style="display: block; margin-bottom: 4px; font-size: 13px;">Right:</label>
+                        <input type="number" 
+                               id="config_display_padding_right" 
+                               value="${paddingConfig.right || 12}" 
+                               min="0" 
+                               max="100" 
+                               step="1"
+                               style="width: 100%; padding: 6px;">
+                    </div>
+                </div>
+                <small style="display: block; color: #666; margin-top: 4px; font-size: 12px;">
+                    Adjust the padding (spacing) around slide content. Applies to all slides except image slides.
+                    <br>Range: 0 to 100 pixels. Changes take effect on the next slide render.
                 </small>
             </div>
         `;
@@ -2129,9 +2181,21 @@ async function saveConfig() {
     const fontScaleInput = document.getElementById('config_display_font_scale');
     const fontScale = fontScaleInput ? parseFloat(fontScaleInput.value) || 1.0 : (config.display?.font_scale || 1.0);
     
+    // Get padding values
+    const paddingTop = parseInt(document.getElementById('config_display_padding_top')?.value || '12') || 12;
+    const paddingBottom = parseInt(document.getElementById('config_display_padding_bottom')?.value || '12') || 12;
+    const paddingLeft = parseInt(document.getElementById('config_display_padding_left')?.value || '12') || 12;
+    const paddingRight = parseInt(document.getElementById('config_display_padding_right')?.value || '12') || 12;
+    
     const newConfig = {
         display: {
-            font_scale: Math.max(0.5, Math.min(3.0, fontScale))  // Clamp between 0.5 and 3.0
+            font_scale: Math.max(0.5, Math.min(3.0, fontScale)),  // Clamp between 0.5 and 3.0
+            padding: {
+                top: Math.max(0, Math.min(100, paddingTop)),  // Clamp between 0 and 100
+                bottom: Math.max(0, Math.min(100, paddingBottom)),
+                left: Math.max(0, Math.min(100, paddingLeft)),
+                right: Math.max(0, Math.min(100, paddingRight))
+            }
         },
         weather: config.weather || {},  // Keep weather config if present
         // Other application-wide settings can be added here
