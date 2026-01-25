@@ -46,7 +46,8 @@ def get_default_slides_config() -> Dict[str, Any]:
                 "duration": 10,
                 "refresh_duration": 5,
                 "order": 0,
-                "conditional": False
+                "conditional": False,
+                "enabled": True
             },
             {
                 "id": 2,
@@ -55,7 +56,8 @@ def get_default_slides_config() -> Dict[str, Any]:
                 "duration": 15,
                 "refresh_duration": 1,
                 "order": 1,
-                "conditional": True
+                "conditional": True,
+                "enabled": True
             },
             {
                 "id": 3,
@@ -64,7 +66,8 @@ def get_default_slides_config() -> Dict[str, Any]:
                 "duration": 15,
                 "refresh_duration": 2,
                 "order": 2,
-                "conditional": True
+                "conditional": True,
+                "enabled": True
             },
             {
                 "id": 4,
@@ -73,7 +76,8 @@ def get_default_slides_config() -> Dict[str, Any]:
                 "duration": 10,
                 "refresh_duration": 5,
                 "order": 3,
-                "conditional": False
+                "conditional": False,
+                "enabled": True
             }
         ]
     }
@@ -84,6 +88,7 @@ def get_default_api_config() -> Dict[str, Any]:
     return {
         "display": {
             "font_scale": 1.0,  # Global font scale multiplier (1.0 = default, 1.5 = 50% larger, etc.)
+            "font_family": "monaco",  # Font family: monaco, geneva, chicago, courier, menlo, system
             "padding": {
                 "top": 12,
                 "bottom": 12,

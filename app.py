@@ -82,6 +82,10 @@ class HomelabHUD:
     
     def _should_display_slide(self, slide: dict) -> bool:
         """Check if slide should be displayed based on conditional logic using slide types."""
+        # First check if slide is enabled (default to True for backward compatibility)
+        if slide.get("enabled", True) is False:
+            return False
+        
         slide_type_name = slide.get("type", "")
         slide_type = SlideTypeRegistry.get(slide_type_name)
         
@@ -271,6 +275,11 @@ class HomelabHUD:
                 for slide in slides:
                     if not self.running:
                         break
+                    
+                    # Check if slide is enabled (default to True for backward compatibility)
+                    if slide.get("enabled", True) is False:
+                        print(f"Skipping slide '{slide.get('title')}' (disabled)")
+                        continue
                     
                     # Get slide configuration
                     slide_type = slide.get("type", "")

@@ -115,64 +115,174 @@ FONT_SIZE_LARGE, FONT_SIZE_MEDIUM, FONT_SIZE_SMALL, FONT_SIZE_TINY = _get_scaled
 PADDING, LINE_HEIGHT_LARGE, LINE_HEIGHT_MEDIUM, LINE_HEIGHT_SMALL, LINE_HEIGHT_TINY = _get_scaled_layout_constants()
 
 
-def get_monospace_font(size: int) -> ImageFont.FreeTypeFont:
-    """
-    Get monospace font for given size.
-    Falls back to default font if custom font not available.
-    """
+# Macintosh Plus-inspired font registry
+FONT_REGISTRY = {
+    "monaco": {
+        "name": "Monaco",
+        "description": "Classic Mac monospace font (Macintosh Plus style)",
+        "paths": {
+            "darwin": [
+                "/System/Library/Fonts/Monaco.ttf",
+                "/System/Library/Fonts/Supplemental/Monaco.ttf",
+                "/Library/Fonts/Monaco.ttf",
+            ],
+            "linux": [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+            ]
+        }
+    },
+    "geneva": {
+        "name": "Geneva",
+        "description": "Classic Mac sans-serif font",
+        "paths": {
+            "darwin": [
+                "/System/Library/Fonts/Geneva.ttf",
+                "/System/Library/Fonts/Supplemental/Geneva.ttf",
+                "/Library/Fonts/Geneva.ttf",
+            ],
+            "linux": [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            ]
+        }
+    },
+    "chicago": {
+        "name": "Chicago",
+        "description": "Classic Mac system font (bitmap style)",
+        "paths": {
+            "darwin": [
+                "/System/Library/Fonts/Chicago.ttf",
+                "/System/Library/Fonts/Supplemental/Chicago.ttf",
+            ],
+            "linux": [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            ]
+        }
+    },
+    "courier": {
+        "name": "Courier",
+        "description": "Classic monospace typewriter font",
+        "paths": {
+            "darwin": [
+                "/System/Library/Fonts/Courier.ttc",
+                "/System/Library/Fonts/Supplemental/Courier New.ttf",
+                "/Library/Fonts/Courier New.ttf",
+            ],
+            "linux": [
+                "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            ]
+        }
+    },
+    "menlo": {
+        "name": "Menlo",
+        "description": "Modern Mac monospace font",
+        "paths": {
+            "darwin": [
+                "/System/Library/Fonts/Menlo.ttc",
+                "/System/Library/Fonts/Supplemental/Menlo.ttc",
+            ],
+            "linux": [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+            ]
+        }
+    },
+    "system": {
+        "name": "System Default",
+        "description": "System default monospace font",
+        "paths": {
+            "darwin": [
+                "/System/Library/Fonts/Menlo.ttc",
+                "/System/Library/Fonts/Monaco.ttf",
+            ],
+            "linux": [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+            ]
+        }
+    }
+}
+
+
+def get_font_family() -> str:
+    """Get font family from configuration."""
     try:
-        # Try to load custom pixel font if available
-        font_paths = [
+        api_config = get_api_config()
+        display_config = api_config.get("display", {})
+        font_family = display_config.get("font_family", "monaco")
+        # Validate font family
+        if font_family not in FONT_REGISTRY:
+            print(f"[Theme] Invalid font family '{font_family}', using 'monaco'")
+            font_family = "monaco"
+        print(f"[Theme] Font family from config: {font_family}")
+        return font_family
+    except Exception as e:
+        print(f"[Theme] Error getting font family: {e}, using default 'monaco'")
+        return "monaco"
+
+
+def get_monospace_font(size: int, font_family: str = None) -> ImageFont.FreeTypeFont:
+    """
+    Get monospace font for given size and font family.
+    Macintosh Plus-inspired font selection.
+    
+    Args:
+        size: Font size in pixels
+        font_family: Font family name (monaco, geneva, chicago, courier, menlo, system)
+                    If None, uses font_family from config
+    
+    Returns:
+        PIL ImageFont object
+    """
+    if font_family is None:
+        font_family = get_font_family()
+    
+    try:
+        # First, try custom fonts in data/fonts directory
+        custom_font_paths = [
+            Path(__file__).parent.parent.parent / "data" / "fonts" / f"{font_family}.ttf",
             Path(__file__).parent.parent.parent / "data" / "fonts" / "monospace.ttf",
             Path(__file__).parent.parent.parent / "data" / "fonts" / "Courier.ttf",
         ]
         
-        for font_path in font_paths:
+        for font_path in custom_font_paths:
             if font_path.exists():
                 try:
-                    return ImageFont.truetype(str(font_path), size)
-                except Exception:
+                    font = ImageFont.truetype(str(font_path), size)
+                    print(f"[Theme] Loaded custom font from {font_path} at size {size}")
+                    return font
+                except Exception as e:
+                    print(f"[Theme] Failed to load custom font {font_path}: {e}")
                     continue
         
-        # Fall back to system monospace font
-        system_fonts = []
-        if sys.platform == 'darwin':
-            system_fonts = [
-                "/System/Library/Fonts/Menlo.ttc",
-                "/System/Library/Fonts/Supplemental/Courier New.ttf",
-                "/Library/Fonts/Courier New.ttf",
-            ]
-        elif sys.platform == 'linux':
-            system_fonts = [
-                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-                "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-                "/usr/share/fonts/truetype/ttf-dejavu/DejaVuSansMono.ttf",
-            ]
+        # Get font paths from registry
+        if font_family not in FONT_REGISTRY:
+            print(f"[Theme] Font family '{font_family}' not in registry, using 'monaco'")
+            font_family = "monaco"
         
-        for font_path in system_fonts:
+        font_info = FONT_REGISTRY[font_family]
+        platform = "darwin" if sys.platform == "darwin" else "linux"
+        font_paths = font_info["paths"].get(platform, font_info["paths"].get("linux", []))
+        
+        # Try each font path in order
+        for font_path in font_paths:
             try:
                 if Path(font_path).exists():
                     font = ImageFont.truetype(font_path, size)
-                    import os
-                    if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
-                        print(f"[Theme] Loaded system font from {font_path} at size {size}")
+                    print(f"[Theme] Loaded {font_info['name']} from {font_path} at size {size}")
                     return font
             except Exception as e:
-                import os
-                if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
-                    print(f"[Theme] Failed to load system font {font_path}: {e}")
+                print(f"[Theme] Failed to load {font_info['name']} from {font_path}: {e}")
                 continue
         
         # Final fallback: ImageFont.load_default() doesn't support size scaling
-        # This is a fixed-size bitmap font, so font scaling won't work if we reach here
-        import os
-        if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
-            print(f"[Theme] WARNING: Falling back to default font (size {size} will NOT be applied - default font is fixed-size)")
+        print(f"[Theme] WARNING: Could not load {font_info['name']}, falling back to default font (size {size} will NOT be applied)")
         return ImageFont.load_default()
     except Exception as e:
-        import os
-        if os.getenv('HUD_ENV') == 'dev' or os.getenv('DEBUG'):
-            print(f"[Theme] Error in get_monospace_font: {e}")
+        print(f"[Theme] Error in get_monospace_font: {e}")
         return ImageFont.load_default()
 
 
@@ -219,11 +329,14 @@ class FalloutTheme:
             "text_muted": COLOR_GRAY_MEDIUM,
             "accent": COLOR_GRAY_LIGHT,
         }
-        # Create fonts with scaled sizes
-        font_large = get_monospace_font(self.font_size_large)
-        font_medium = get_monospace_font(self.font_size_medium)
-        font_small = get_monospace_font(self.font_size_small)
-        font_tiny = get_monospace_font(self.font_size_tiny)
+        # Get font family from config
+        self.font_family = get_font_family()
+        
+        # Create fonts with scaled sizes using selected font family
+        font_large = get_monospace_font(self.font_size_large, self.font_family)
+        font_medium = get_monospace_font(self.font_size_medium, self.font_family)
+        font_small = get_monospace_font(self.font_size_small, self.font_family)
+        font_tiny = get_monospace_font(self.font_size_tiny, self.font_family)
         
         # Log actual font sizes (check if font supports size attribute)
         print(f"[Theme] Created fonts - Large: {getattr(font_large, 'size', 'N/A')}, Medium: {getattr(font_medium, 'size', 'N/A')}, Small: {getattr(font_small, 'size', 'N/A')}, Tiny: {getattr(font_tiny, 'size', 'N/A')}")

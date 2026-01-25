@@ -449,10 +449,14 @@ function createSlideElement(slide) {
     };
     
     const badge = slide.conditional ? `<span class="slide-badge badge-conditional">Hide if no data</span>` : '';
+    const isEnabled = slide.enabled !== false; // Default to true for backward compatibility
+    const enabledClass = isEnabled ? '' : 'slide-disabled';
+    const enabledBadge = isEnabled ? '' : '<span class="slide-badge badge-disabled">Disabled</span>';
     
     // Create preview image with cache-busting timestamp
     const previewImageUrl = `${API_BASE}/preview/${slide.id}?t=${Date.now()}`;
     
+    div.className = `slide-item ${enabledClass}`;
     div.innerHTML = `
         <div class="drag-handle" aria-label="Drag to reorder">☰</div>
         <div class="slide-preview" onclick="previewSlide(${slide.id})" title="Click to view full preview" role="button" tabindex="0" aria-label="Preview slide ${slide.title}">
@@ -461,7 +465,7 @@ function createSlideElement(slide) {
                  onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'160\' height=\'140\'%3E%3Crect fill=\'%23ccc\' width=\'160\' height=\'140\'/%3E%3Ctext fill=\'%23999\' font-family=\'monospace\' font-size=\'12\' x=\'50%25\' y=\'50%25\' text-anchor=\'middle\' dominant-baseline=\'middle\'%3ELoading...%3C/text%3E%3C/svg%3E';" />
         </div>
         <div class="slide-info">
-            <div class="slide-title">${escapeHtml(slide.title)} ${badge}</div>
+            <div class="slide-title">${escapeHtml(slide.title)} ${badge} ${enabledBadge}</div>
             <div class="slide-meta">
                 ${typeLabels[slide.type] || slide.type} | 
                 Display: ${slide.duration}s | 
@@ -470,6 +474,10 @@ function createSlideElement(slide) {
             </div>
         </div>
         <div class="slide-actions">
+            <label class="slide-enable-toggle" title="${isEnabled ? 'Disable' : 'Enable'} slide">
+                <input type="checkbox" ${isEnabled ? 'checked' : ''} onchange="toggleSlideEnabled(${slide.id}, this.checked)" aria-label="${isEnabled ? 'Disable' : 'Enable'} slide">
+                <span>${isEnabled ? 'Enabled' : 'Disabled'}</span>
+            </label>
             <button class="btn btn-small btn-secondary" onclick="previewSlide(${slide.id})" aria-label="Preview slide">Preview</button>
             <button class="btn btn-small btn-secondary" onclick="editSlide(${slide.id})" aria-label="Edit slide">Edit</button>
             <button class="btn btn-small btn-danger" onclick="deleteSlide(${slide.id})" aria-label="Delete slide">Delete</button>
@@ -1951,6 +1959,47 @@ function editSlide(id) {
     }
 }
 
+// Toggle Slide Enabled/Disabled
+async function toggleSlideEnabled(id, enabled) {
+    const slide = slides.find(s => s.id === id);
+    if (!slide) {
+        showError('Slide not found');
+        return;
+    }
+    
+    try {
+        // Optimistic update
+        slide.enabled = enabled;
+        renderSlides();
+        
+        // Update via API
+        const response = await fetch(`${API_BASE}/slides/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: enabled })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const updatedSlide = await response.json();
+        // Update local slide with server response
+        const index = slides.findIndex(s => s.id === id);
+        if (index !== -1) {
+            slides[index] = updatedSlide;
+        }
+        
+        showSuccess(`Slide ${enabled ? 'enabled' : 'disabled'} successfully`);
+    } catch (error) {
+        console.error('Error toggling slide enabled state:', error);
+        showError(`Failed to ${enabled ? 'enable' : 'disable'} slide: ${error.message}`);
+        // Revert optimistic update
+        slide.enabled = !enabled;
+        renderSlides();
+    }
+}
+
 // Delete Slide
 async function deleteSlide(id) {
     const confirmed = await showConfirm('Are you sure you want to delete this slide?', 'Delete Slide');
@@ -2023,15 +2072,42 @@ function renderConfig() {
         `;
         container.appendChild(noteDiv);
         
-        // Display settings (font scale and padding)
-        const displayConfig = config.display || { font_scale: 1.0, padding: { top: 12, bottom: 12, left: 12, right: 12 } };
+        // Display settings (font scale, font family, and padding)
+        const displayConfig = config.display || { font_scale: 1.0, font_family: "monaco", padding: { top: 12, bottom: 12, left: 12, right: 12 } };
         const paddingConfig = displayConfig.padding || { top: 12, bottom: 12, left: 12, right: 12 };
         const displaySection = document.createElement('div');
         displaySection.className = 'config-section';
         displaySection.style.cssText = 'margin-bottom: 24px; padding: 16px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;';
+        
+        // Font family options (Macintosh Plus inspired)
+        const fontOptions = [
+            { value: "monaco", label: "Monaco", desc: "Classic Mac monospace font (Macintosh Plus style)" },
+            { value: "geneva", label: "Geneva", desc: "Classic Mac sans-serif font" },
+            { value: "chicago", label: "Chicago", desc: "Classic Mac system font (bitmap style)" },
+            { value: "courier", label: "Courier", desc: "Classic monospace typewriter font" },
+            { value: "menlo", label: "Menlo", desc: "Modern Mac monospace font" },
+            { value: "system", label: "System Default", desc: "System default monospace font" }
+        ];
+        
+        const fontOptionsHtml = fontOptions.map(font => 
+            `<option value="${font.value}" ${displayConfig.font_family === font.value ? 'selected' : ''}>${font.label} - ${font.desc}</option>`
+        ).join('');
+        
         displaySection.innerHTML = `
             <h3 style="margin-top: 0; margin-bottom: 16px;">Display Settings</h3>
-            <div class="config-row" style="margin-bottom: 12px;">
+            <div class="config-row" style="margin-bottom: 16px;">
+                <label for="config_display_font_family" style="display: block; margin-bottom: 4px; font-weight: bold;">
+                    Font Family (Macintosh Plus Inspired):
+                </label>
+                <select id="config_display_font_family" 
+                        style="width: 100%; padding: 6px; margin-bottom: 4px;">
+                    ${fontOptionsHtml}
+                </select>
+                <small style="display: block; color: #666; margin-top: 4px; font-size: 12px;">
+                    Choose a classic Macintosh Plus-inspired font. Changes take effect on the next slide render.
+                </small>
+            </div>
+            <div class="config-row" style="margin-bottom: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #ddd;">
                 <label for="config_display_font_scale" style="display: block; margin-bottom: 4px; font-weight: bold;">
                     Font Scale:
                 </label>
@@ -2181,6 +2257,9 @@ async function saveConfig() {
     const fontScaleInput = document.getElementById('config_display_font_scale');
     const fontScale = fontScaleInput ? parseFloat(fontScaleInput.value) || 1.0 : (config.display?.font_scale || 1.0);
     
+    const fontFamilyInput = document.getElementById('config_display_font_family');
+    const fontFamily = fontFamilyInput ? fontFamilyInput.value || "monaco" : (config.display?.font_family || "monaco");
+    
     // Get padding values
     const paddingTop = parseInt(document.getElementById('config_display_padding_top')?.value || '12') || 12;
     const paddingBottom = parseInt(document.getElementById('config_display_padding_bottom')?.value || '12') || 12;
@@ -2190,6 +2269,7 @@ async function saveConfig() {
     const newConfig = {
         display: {
             font_scale: Math.max(0.5, Math.min(3.0, fontScale)),  // Clamp between 0.5 and 3.0
+            font_family: fontFamily,
             padding: {
                 top: Math.max(0, Math.min(100, paddingTop)),  // Clamp between 0 and 100
                 bottom: Math.max(0, Math.min(100, paddingBottom)),
