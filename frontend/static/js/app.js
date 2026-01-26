@@ -189,6 +189,20 @@ function setupEventListeners() {
         document.getElementById('clearArmDebugBtn').addEventListener('click', clearArmDebugLogs);
     }
     
+    // Debug buttons - OctoPrint
+    if (document.getElementById('refreshOctopiDebugBtn')) {
+        document.getElementById('refreshOctopiDebugBtn').addEventListener('click', loadOctopiDebugLogs);
+    }
+    if (document.getElementById('testOctopiBtn')) {
+        document.getElementById('testOctopiBtn').addEventListener('click', testOctopiConnection);
+    }
+    if (document.getElementById('fetchOctopiDataBtn')) {
+        document.getElementById('fetchOctopiDataBtn').addEventListener('click', fetchOctopiData);
+    }
+    if (document.getElementById('clearOctopiDebugBtn')) {
+        document.getElementById('clearOctopiDebugBtn').addEventListener('click', clearOctopiDebugLogs);
+    }
+    
     // Debug buttons - System
     if (document.getElementById('refreshSystemDebugBtn')) {
         document.getElementById('refreshSystemDebugBtn').addEventListener('click', loadSystemDebugLogs);
@@ -250,6 +264,7 @@ function switchToTab(tabName, updateHash = true) {
     } else if (tabName === 'debug') {
         loadDebugLogs();
         loadArmDebugLogs();
+        loadOctopiDebugLogs();
         loadSystemDebugLogs();
     } else if (tabName === 'designer') {
         // Widget designer tab - already initialized on DOMContentLoaded
@@ -3412,6 +3427,180 @@ async function testSystemCollection() {
     } finally {
         setButtonLoading(testBtn, false, originalText);
     }
+}
+
+// OctoPrint Debug Functions
+async function loadOctopiDebugLogs() {
+    try {
+        console.log('Loading OctoPrint debug logs from:', `${API_BASE}/debug/octopi`);
+        const response = await fetch(`${API_BASE}/debug/octopi`);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const data = await response.json();
+        
+        // Update debug info
+        document.getElementById('octopiDebugApiUrl').textContent = data.api_url || '-';
+        document.getElementById('octopiDebugHasKey').textContent = data.has_key ? 'Yes' : 'No';
+        document.getElementById('octopiDebugLogCount').textContent = data.log_count || 0;
+        
+        // Check if printing from latest log
+        const latestLog = data.logs && data.logs.length > 0 ? data.logs[0] : null;
+        if (latestLog && latestLog.response_data) {
+            const responseData = latestLog.response_data;
+            const isPrinting = responseData.is_printing || false;
+            document.getElementById('octopiDebugIsPrinting').textContent = isPrinting ? 'Yes' : 'No';
+        } else {
+            document.getElementById('octopiDebugIsPrinting').textContent = '-';
+        }
+        
+        const logsDiv = document.getElementById('octopiDebugLogs');
+        if (!logsDiv) {
+            console.error('octopiDebugLogs element not found');
+            return;
+        }
+        
+        if (!data.logs || data.logs.length === 0) {
+            console.log('No OctoPrint debug logs found');
+            logsDiv.innerHTML = '<div class="debug-empty">No debug logs available yet. Try making a request or click "Test Connection".</div>';
+            return;
+        }
+        
+        console.log(`Displaying ${data.logs.length} OctoPrint debug log entries`);
+        
+        let html = '<div class="debug-log-list">';
+        for (const log of data.logs) {
+            const statusClass = log.error ? 'error' : (log.status_code >= 200 && log.status_code < 300 ? 'success' : 'warning');
+            html += `<div class="debug-log-entry ${statusClass}">`;
+            html += `<div class="debug-log-header">`;
+            html += `<span class="debug-log-time">${log.timestamp_readable || new Date(log.timestamp * 1000).toLocaleString()}</span>`;
+            html += `<span class="debug-log-endpoint">${log.endpoint || 'unknown'}</span>`;
+            html += `<span class="debug-log-method">${log.method || 'GET'}</span>`;
+            if (log.status_code) {
+                html += `<span class="debug-log-status">${log.status_code}</span>`;
+            } else if (log.error) {
+                html += `<span class="debug-log-error">ERROR</span>`;
+            }
+            html += `</div>`;
+            html += `<div class="debug-log-details">`;
+            html += `<div class="debug-log-section"><strong>URL:</strong> <code>${log.url || 'N/A'}</code></div>`;
+            if (log.headers && Object.keys(log.headers).length > 0) {
+                html += `<div class="debug-log-section"><strong>Headers:</strong><pre>${JSON.stringify(log.headers, null, 2)}</pre></div>`;
+            }
+            if (log.error) {
+                html += `<div class="debug-log-section error"><strong>Error:</strong> <code>${log.error}</code></div>`;
+            } else {
+                if (log.status_code) {
+                    html += `<div class="debug-log-section"><strong>Status:</strong> ${log.status_code}</div>`;
+                }
+                if (log.response_data) {
+                    html += `<div class="debug-log-section"><strong>Response Data:</strong><pre>${JSON.stringify(log.response_data, null, 2)}</pre></div>`;
+                } else if (log.response_preview) {
+                    html += `<div class="debug-log-section"><strong>Response Preview:</strong><pre>${log.response_preview}</pre></div>`;
+                    if (log.response_full_length > 500) {
+                        html += `<div class="debug-log-section"><em>(Truncated, full length: ${log.response_full_length} chars)</em></div>`;
+                    }
+                }
+            }
+            html += `</div>`;
+            html += `</div>`;
+        }
+        html += '</div>';
+        logsDiv.innerHTML = html;
+    } catch (error) {
+        console.error('Error loading OctoPrint debug logs:', error);
+        const logsDiv = document.getElementById('octopiDebugLogs');
+        if (logsDiv) {
+            logsDiv.innerHTML = `<div class="debug-error">Error loading debug logs: ${error.message}<br/><button class="btn btn-small btn-primary" onclick="loadOctopiDebugLogs()">Retry</button></div>`;
+        }
+        showError(`Failed to load OctoPrint debug logs: ${error.message}`);
+    }
+}
+
+async function testOctopiConnection() {
+    const testBtn = document.getElementById('testOctopiBtn');
+    const originalText = testBtn ? testBtn.textContent : 'Test Connection';
+    setButtonLoading(testBtn, true, 'Testing...');
+    
+    try {
+        const response = await fetch(`${API_BASE}/debug/octopi/test`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess(`Connection test successful! Is printing: ${data.is_printing ? 'Yes' : 'No'}`);
+        } else {
+            showError(`Connection test failed. Check debug logs for details.`);
+        }
+        
+        // Refresh logs after test
+        await loadOctopiDebugLogs();
+    } catch (error) {
+        console.error('Error testing OctoPrint connection:', error);
+        showError(`Connection test failed: ${error.message}`);
+        await loadOctopiDebugLogs();
+    } finally {
+        setButtonLoading(testBtn, false, originalText);
+    }
+}
+
+async function fetchOctopiData() {
+    const fetchBtn = document.getElementById('fetchOctopiDataBtn');
+    const originalText = fetchBtn ? fetchBtn.textContent : 'Fetch Current Data';
+    setButtonLoading(fetchBtn, true, 'Fetching...');
+    
+    try {
+        const response = await fetch(`${API_BASE}/debug/octopi/data`);
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Display data
+        const dataDiv = document.getElementById('octopiDebugData');
+        const dataContent = document.getElementById('octopiDebugDataContent');
+        
+        if (dataDiv && dataContent) {
+            dataContent.textContent = JSON.stringify(data, null, 2);
+            dataDiv.style.display = 'block';
+        }
+        
+        showSuccess('Data fetched successfully');
+        
+        // Refresh logs
+        await loadOctopiDebugLogs();
+    } catch (error) {
+        console.error('Error fetching OctoPrint data:', error);
+        showError(`Failed to fetch data: ${error.message}`);
+    } finally {
+        setButtonLoading(fetchBtn, false, originalText);
+    }
+}
+
+async function clearOctopiDebugLogs() {
+    const confirmed = await showConfirm('Clear OctoPrint debug logs? This cannot be undone.', 'Clear Logs');
+    if (!confirmed) {
+        return;
+    }
+    
+    // Note: The backend doesn't have a clear endpoint, so we just clear the display
+    // The logs will be cleared when new requests are made (they're kept in memory)
+    document.getElementById('octopiDebugLogs').innerHTML = '<div class="debug-empty">Debug logs cleared. New requests will populate logs.</div>';
+    document.getElementById('octopiDebugLogCount').textContent = '0';
+    showSuccess('OctoPrint debug logs cleared');
 }
 
 async function clearSystemDebugLogs() {

@@ -10,6 +10,7 @@ from .image_slide import ImageSlideType
 from .static_text_slide import StaticTextSlideType
 from .custom_slide import CustomSlideType
 from .clock_slide import ClockSlideType
+from .octopi_slide import OctoPiSlideType
 
 # Register all slide types
 SlideTypeRegistry.register(PiHoleSlideType)
@@ -21,6 +22,7 @@ SlideTypeRegistry.register(ImageSlideType)
 SlideTypeRegistry.register(StaticTextSlideType)
 SlideTypeRegistry.register(CustomSlideType)
 SlideTypeRegistry.register(ClockSlideType)
+SlideTypeRegistry.register(OctoPiSlideType)
 
 __all__ = [
     'SlideTypeRegistry',
@@ -33,4 +35,5 @@ __all__ = [
     'StaticTextSlideType',
     'CustomSlideType',
     'ClockSlideType',
+    'OctoPiSlideType',
 ]

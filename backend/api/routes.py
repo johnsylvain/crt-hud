@@ -824,6 +824,235 @@ def create_app(collectors: Dict[str, Any] = None, template_folder: str = None, s
             "has_active_rip": collector.has_active_rip() if hasattr(collector, "has_active_rip") else None,
         })
     
+    @app.route("/api/debug/octopi", methods=["GET"])
+    def get_octopi_debug():
+        """Get OctoPrint collector debug logs from all OctoPi slides."""
+        from config import get_slides_config
+        from backend.slides import SlideTypeRegistry
+        
+        config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Try to get collectors from running app instance first
+        app_instance = app.config.get('APP_INSTANCE')
+        stored_collectors = {}
+        if app_instance and hasattr(app_instance, 'slide_collectors'):
+            with app_instance.slide_collectors_lock:
+                stored_collectors = app_instance.slide_collectors.copy()
+        
+        # Find all octopi_print_status slides and aggregate their debug logs
+        all_logs = []
+        octopi_slides_info = []
+        api_url = ""
+        has_key = False
+        
+        for slide in slides:
+            if slide.get("type") == "octopi_print_status":
+                slide_id = slide.get("id")
+                slide_title = slide.get("title", f"Slide {slide_id}")
+                
+                collector = None
+                logs = []
+                
+                # Try to get stored collector first (has historical logs from display loop)
+                if slide_id in stored_collectors:
+                    collector = stored_collectors[slide_id]
+                    if hasattr(collector, "get_debug_logs"):
+                        logs = collector.get_debug_logs()
+                        print(f"Found stored OctoPrint collector for slide {slide_id} with {len(logs)} log entries")
+                
+                # Create collector if we don't have one yet
+                slide_type = SlideTypeRegistry.get("octopi_print_status")
+                if not collector and slide_type:
+                    try:
+                        config_data = {
+                            "service_config": slide.get("service_config", {}),
+                            "api_config": slide.get("api_config")
+                        }
+                        collector = slide_type.create_collector(config_data)
+                        print(f"Created new OctoPrint collector for slide {slide_id}")
+                    except Exception as e:
+                        print(f"Error creating OctoPrint collector for slide {slide_id}: {e}")
+                        collector = None
+                
+                # Always force a collection to ensure we have at least one log entry
+                if collector and hasattr(collector, "_fetch_data"):
+                    try:
+                        print(f"Forcing OctoPrint collection for slide {slide_id} to ensure debug logs exist")
+                        collector._fetch_data()  # This will populate debug logs via _log_debug
+                        
+                        # Get logs after forced collection
+                        if hasattr(collector, "get_debug_logs"):
+                            logs = collector.get_debug_logs()
+                            print(f"After forced collection, OctoPrint slide {slide_id} has {len(logs)} log entries")
+                    except Exception as e:
+                        print(f"Error forcing OctoPrint collection for debug logs: {e}")
+                        import traceback
+                        traceback.print_exc()
+                
+                # Store collector in app_instance for future debug log access
+                if collector and app_instance and hasattr(app_instance, 'slide_collectors'):
+                    with app_instance.slide_collectors_lock:
+                        app_instance.slide_collectors[slide_id] = collector
+                        print(f"Stored OctoPrint collector for slide {slide_id} in app_instance")
+                
+                # Extract API info from first collector we find
+                if collector and not api_url:
+                    api_url = collector.api_url if hasattr(collector, "api_url") else ""
+                    has_key = bool(collector.api_key) if hasattr(collector, "api_key") else False
+                
+                # Add slide info to each log entry
+                if logs:
+                    for log in logs:
+                        log_with_slide = log.copy()
+                        log_with_slide["slide_id"] = slide_id
+                        log_with_slide["slide_title"] = slide_title
+                        all_logs.append(log_with_slide)
+                
+                octopi_slides_info.append({
+                    "slide_id": slide_id,
+                    "slide_title": slide_title,
+                    "log_count": len(logs),
+                    "api_url": collector.api_url if collector and hasattr(collector, "api_url") else "",
+                    "has_key": bool(collector.api_key) if collector and hasattr(collector, "api_key") else False,
+                })
+        
+        # Sort logs by timestamp (newest first)
+        all_logs.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+        
+        # Format timestamps for display
+        from datetime import datetime
+        for log in all_logs:
+            timestamp = log.get("timestamp", 0)
+            if timestamp:
+                log["timestamp_readable"] = datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S")
+        
+        return jsonify({
+            "logs": all_logs,
+            "log_count": len(all_logs),
+            "slides": octopi_slides_info,
+            "api_url": api_url,
+            "has_key": has_key,
+        })
+    
+    @app.route("/api/debug/octopi/test", methods=["POST"])
+    def test_octopi_connection():
+        """Test OctoPrint connection by forcing a fetch."""
+        from config import get_slides_config
+        from backend.slides import SlideTypeRegistry
+        
+        config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Find first octopi_print_status slide
+        octopi_slide = None
+        for slide in slides:
+            if slide.get("type") == "octopi_print_status":
+                octopi_slide = slide
+                break
+        
+        if not octopi_slide:
+            return jsonify({"error": "No OctoPrint slides configured"}), 404
+        
+        slide_type = SlideTypeRegistry.get("octopi_print_status")
+        if not slide_type:
+            return jsonify({"error": "OctoPrint slide type not available"}), 500
+        
+        # Create collector
+        collector = None
+        try:
+            config_data = {
+                "service_config": octopi_slide.get("service_config", {}),
+                "api_config": octopi_slide.get("api_config")
+            }
+            collector = slide_type.create_collector(config_data)
+        except Exception as e:
+            return jsonify({"error": f"Failed to create collector: {str(e)}"}), 500
+        
+        if not collector:
+            return jsonify({"error": "OctoPrint collector could not be created"}), 500
+        
+        # Force fetch
+        result = None
+        logs = []
+        if hasattr(collector, "_fetch_data"):
+            result = collector._fetch_data()
+            if hasattr(collector, "get_debug_logs"):
+                logs = collector.get_debug_logs()
+        
+        return jsonify({
+            "success": result is not None,
+            "result": result,
+            "result_type": type(result).__name__ if result else None,
+            "result_keys": list(result.keys()) if isinstance(result, dict) else None,
+            "is_printing": result.get("is_printing", False) if isinstance(result, dict) else None,
+            "latest_log": logs[-1] if logs else None
+        })
+    
+    @app.route("/api/debug/octopi/data", methods=["GET"])
+    def get_octopi_data():
+        """Get current OctoPrint data (bypassing cache) from the first OctoPrint slide."""
+        from config import get_slides_config
+        from backend.slides import SlideTypeRegistry
+        
+        config = get_slides_config()
+        slides = config.get("slides", [])
+        
+        # Find first octopi_print_status slide
+        octopi_slide = None
+        for slide in slides:
+            if slide.get("type") == "octopi_print_status":
+                octopi_slide = slide
+                break
+        
+        if not octopi_slide:
+            return jsonify({"error": "No OctoPrint slides configured"}), 404
+        
+        slide_type = SlideTypeRegistry.get("octopi_print_status")
+        if not slide_type:
+            return jsonify({"error": "OctoPrint slide type not available"}), 500
+        
+        # Create collector
+        collector = None
+        try:
+            config_data = {
+                "service_config": octopi_slide.get("service_config", {}),
+                "api_config": octopi_slide.get("api_config")
+            }
+            collector = slide_type.create_collector(config_data)
+        except Exception as e:
+            return jsonify({"error": f"Failed to create collector: {str(e)}"}), 500
+        
+        if not collector:
+            return jsonify({"error": "OctoPrint collector could not be created"}), 500
+        
+        # Get cached data first
+        cached_data = None
+        if hasattr(collector, "get_data"):
+            cached_data = collector.get_data()
+        
+        # Force fresh fetch by clearing cache
+        fresh_data = None
+        if hasattr(collector, "clear_cache"):
+            collector.clear_cache()
+        if hasattr(collector, "_fetch_data"):
+            fresh_data = collector._fetch_data()
+        
+        # Check what get_data returns after fresh fetch
+        final_data = None
+        if hasattr(collector, "get_data"):
+            final_data = collector.get_data()
+        
+        return jsonify({
+            "cached_data_before": cached_data,
+            "cached_data_type": type(cached_data).__name__ if cached_data is not None else "None",
+            "fresh_fetch_result": fresh_data,
+            "fresh_data_type": type(fresh_data).__name__ if fresh_data is not None else "None",
+            "get_data_after_fresh": final_data,
+            "final_data_type": type(final_data).__name__ if final_data is not None else "None",
+            "is_printing": final_data.get("is_printing", False) if isinstance(final_data, dict) else None,
+        })
+    
     @app.route("/api/debug/system", methods=["GET"])
     def get_system_debug():
         """Get System collector debug logs from all system slides."""

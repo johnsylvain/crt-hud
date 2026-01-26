@@ -332,6 +332,37 @@
                     </div>
                 </section>
                 
+                <!-- OctoPrint Debug Section -->
+                <section class="card collapsible-section">
+                    <h2 class="collapsible-header expanded" data-target="octopiDebugContent">
+                        <span class="collapse-icon">▼</span>
+                        <span class="collapse-text">OctoPrint API Debug</span>
+                    </h2>
+                    <div id="octopiDebugContent" class="collapsible-content expanded">
+                        <div class="controls">
+                            <button id="refreshOctopiDebugBtn" class="btn btn-primary">Refresh Logs</button>
+                            <button id="testOctopiBtn" class="btn btn-secondary">Test Connection</button>
+                            <button id="fetchOctopiDataBtn" class="btn btn-secondary">Fetch Current Data</button>
+                            <button id="clearOctopiDebugBtn" class="btn btn-secondary">Clear Logs</button>
+                        </div>
+                        <div id="octopiDebugInfo" class="debug-info">
+                            <div class="debug-status">
+                                <p><strong>API URL:</strong> <span id="octopiDebugApiUrl">-</span></p>
+                                <p><strong>API Key Configured:</strong> <span id="octopiDebugHasKey">-</span></p>
+                                <p><strong>Log Count:</strong> <span id="octopiDebugLogCount">0</span></p>
+                                <p><strong>Is Printing:</strong> <span id="octopiDebugIsPrinting">-</span></p>
+                            </div>
+                        </div>
+                        <div id="octopiDebugData" class="debug-data" style="display: none;">
+                            <h3>Current Data:</h3>
+                            <pre id="octopiDebugDataContent" class="debug-data-content"></pre>
+                        </div>
+                        <div id="octopiDebugLogs" class="debug-logs">
+                            <!-- OctoPrint debug logs will be displayed here -->
+                        </div>
+                    </div>
+                </section>
+                
                 <!-- System Debug Section -->
                 <section class="card collapsible-section">
                     <h2 class="collapsible-header expanded" data-target="systemDebugContent">

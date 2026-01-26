@@ -236,6 +236,8 @@ class SlideRenderer:
         elif slide_type == "weather" and data:
             temp_unit = (slide_config or {}).get("temp_unit", "C")
             y = self._render_weather(draw, data, y, temp_unit)
+        elif slide_type == "octopi_print_status" and data:
+            y = self._render_octopi(draw, data, y)
         else:
             draw.text(
                 (self.PADDING_LEFT, y),
@@ -642,6 +644,79 @@ class SlideRenderer:
             if len(forecast) > 2:
                 draw.text((self.PADDING_LEFT, y), f"+{len(forecast) - 2} more day(s)...", 
                          fill=self.theme.colors["text_muted"], font=font_small)
+        
+        return y
+    
+    def _render_octopi(self, draw: ImageDraw.Draw, data: Dict[str, Any], y: int) -> int:
+        """Render OctoPi print status."""
+        font_medium = self.theme.fonts["medium"]
+        font_small = self.theme.fonts["small"]
+        bar_width = 30
+        
+        # Check if printing
+        is_printing = data.get("is_printing", False)
+        if not is_printing:
+            draw.text((self.PADDING_LEFT, y), "NO ACTIVE PRINT", 
+                     fill=self.theme.colors["text_muted"], font=font_medium)
+            return y
+        
+        # Filename
+        filename = data.get("filename", "Unknown")
+        max_filename_width = DISPLAY_WIDTH - self.PADDING_LEFT - self.PADDING_RIGHT
+        filename_lines = self._wrap_text(filename, font_medium, max_filename_width, draw)
+        for line in filename_lines:
+            draw.text((self.PADDING_LEFT, y), line, fill=self.theme.colors["text"], font=font_medium)
+            y += self.LINE_HEIGHT_MEDIUM
+        y += 4
+        
+        # Progress
+        progress = data.get("progress", 0.0)
+        bar = draw_progress_bar(bar_width, progress, 100.0)
+        draw.text((self.PADDING_LEFT, y), f"{progress:.1f}% {bar}", 
+                 fill=self.theme.colors["text"], font=font_small)
+        y += self.LINE_HEIGHT_SMALL + 4
+        
+        # Time information
+        print_time = data.get("print_time", 0)
+        print_time_left = data.get("print_time_left", None)
+        
+        if print_time > 0:
+            elapsed_str = format_duration(print_time)
+            if print_time_left is not None and print_time_left > 0:
+                remaining_str = format_duration(print_time_left)
+                draw.text((self.PADDING_LEFT, y), f"ELAPSED: {elapsed_str}", 
+                         fill=self.theme.colors["text_secondary"], font=font_small)
+                y += self.LINE_HEIGHT_SMALL
+                draw.text((self.PADDING_LEFT, y), f"REMAINING: {remaining_str}", 
+                         fill=self.theme.colors["text_secondary"], font=font_small)
+                y += self.LINE_HEIGHT_SMALL
+            else:
+                draw.text((self.PADDING_LEFT, y), f"ELAPSED: {elapsed_str}", 
+                         fill=self.theme.colors["text_secondary"], font=font_small)
+                y += self.LINE_HEIGHT_SMALL
+        
+        y += 4
+        
+        # Temperatures
+        tool0_actual = data.get("tool0_actual", 0.0)
+        tool0_target = data.get("tool0_target", 0.0)
+        bed_actual = data.get("bed_actual", 0.0)
+        bed_target = data.get("bed_target", 0.0)
+        
+        if tool0_target > 0:
+            tool0_str = f"NOZZLE: {tool0_actual:.0f}°C"
+            if tool0_target > 0:
+                tool0_str += f" / {tool0_target:.0f}°C"
+            draw.text((self.PADDING_LEFT, y), tool0_str, 
+                     fill=self.theme.colors["text_secondary"], font=font_small)
+            y += self.LINE_HEIGHT_SMALL
+        
+        if bed_target > 0:
+            bed_str = f"BED: {bed_actual:.0f}°C"
+            if bed_target > 0:
+                bed_str += f" / {bed_target:.0f}°C"
+            draw.text((self.PADDING_LEFT, y), bed_str, 
+                     fill=self.theme.colors["text_secondary"], font=font_small)
         
         return y
     
